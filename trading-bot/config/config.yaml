@@ -1,0 +1,39 @@
+# =====================================================================
+# gnidart-trading-bot — configuration
+# تمام تصمیمات طراحی اینجا متمرکز است. هیچ عدد جادویی داخل کد نیست.
+# =====================================================================
+
+project: gnidart-trading-bot
+mode: backtest            # backtest | paper | mt5-demo | mt5-live
+
+trading:
+  symbols: [EURUSD]       # شروع با یک جفت؛ بعد از اثبات → گسترش
+  decision_timeframe: M15 # تایم‌فریم تصمیم (انتخاب منتور)
+  trend_timeframe: H1     # صفحه ۱ Triple Screen — جهت روند
+  entry_timeframe: M5     # پالایش ورود (فاز ۲ به بعد)
+  trade_sessions: [london, newyork]   # فقط سشن‌های نقدینگی‌دار
+  sessions_utc:
+    asia:   [0, 8]
+    london: [7, 16]
+    newyork: [12, 21]
+  max_trades_per_day: 3
+  max_open_positions: 1
+
+risk:
+  risk_per_trade: 0.005   # ۰.۵٪ سرمایه در هر معامله (فاز دمو؛ با اثبات لبه → 0.01)
+  max_daily_loss: 0.03    # ۳٪ روزانه → توقف تا فردا
+  max_monthly_loss: 0.06  # ۶٪ ماهانه → توقف کامل (قانون الدر)
+
+breaker:                  # نردبان برق‌گیر ضرر — قلب خودتنظیمی ربات
+  derate_at: 2            # ضرر متوالی ۲ → حجم ×۰.۵
+  deep_derate_at: 3       # ضرر متوالی ۳ → حجم ×۰.۲۵ + فقط ستاپ A
+  pause_at: 4             # ضرر متوالی ۴ → توقف ۲۴ ساعته + پست‌مورتم
+  halt_at: 6              # ضرر متوالی ۶ → توقف کامل تا acknowledge
+  pause_hours: 24
+
+data:
+  source: dukascopy       # فاز ۰-ب
+  cache_dir: data/cache
+
+journal:
+  path: data/journal.db   # SQLite — حافظه بلندمدت ربات
