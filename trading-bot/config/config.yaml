@@ -7,7 +7,7 @@ project: gnidart-trading-bot
 mode: backtest            # backtest | paper | mt5-demo | mt5-live
 
 trading:
-  symbols: [EURUSD]       # شروع با یک جفت؛ بعد از اثبات → گسترش
+  symbols: [XAUUSD]       # طلا — انتخاب کاربر؛ بعد از اثبات → گسترش
   decision_timeframe: M15 # تایم‌فریم تصمیم (انتخاب منتور)
   trend_timeframe: H1     # صفحه ۱ Triple Screen — جهت روند
   entry_timeframe: M5     # پالایش ورود (فاز ۲ به بعد)
@@ -18,6 +18,7 @@ trading:
     newyork: [12, 21]
   max_trades_per_day: 3
   max_open_positions: 1
+  max_spread_usd: 0.40   # گیت اسپرد طلا: بالای ۴۰ سنت معامله ممنوع (درس v0)
 
 risk:
   risk_per_trade: 0.005   # ۰.۵٪ سرمایه در هر معامله (فاز دمو؛ با اثبات لبه → 0.01)

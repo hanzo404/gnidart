@@ -21,7 +21,7 @@ def main() -> None:
         raise SystemExit("❌ پکیج MetaTrader5 نصب نیست: py -m pip install MetaTrader5")
 
     ap = argparse.ArgumentParser(description="تست اتصال ربات به متاتریدر ۵")
-    ap.add_argument("--symbol", default="EURUSD", help="نام سیمبل در بروکر تو")
+    ap.add_argument("--symbol", default="XAUUSD", help="نام سیمبل در بروکر تو")
     ap.add_argument("--timeframe", default="M15")
     ap.add_argument("--count", type=int, default=500)
     args = ap.parse_args()

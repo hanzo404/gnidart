@@ -24,6 +24,7 @@ class TradingConfig:
     )
     max_trades_per_day: int = 3
     max_open_positions: int = 1
+    max_spread_usd: float = 0.40
 
 
 @dataclass
