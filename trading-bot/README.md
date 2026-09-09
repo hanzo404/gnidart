@@ -56,7 +56,7 @@ DATA LAYER ──► REGIME ENGINE ──► STRATEGY CORE (×3) ──► RISK 
 | کانفیگ | `src/bot/config.py` + `config/config.yaml` | ✅ |
 | قرارداد استراتژی/اجرا | `src/bot/strategy/base.py`, `src/bot/execution/base.py` | ✅ اینترفیس |
 | داده MT5 + Heartbeat | `src/bot/data/mt5_data.py`, `scripts/mt5_heartbeat.py` | ✅ کد آماده (اجرا روی ویندوز تو — راهنما: `SETUP.md`) |
-| پایپ‌لاین داده (bi5/ریسمپل/CSV) | `src/bot/data/dukascopy.py`, `resample.py`, `local.py` | ✅ فاز ۰-ب + ۸ تست (دانلود روی ماشین تو — اینترنت سندباکس allowlist است) |
+| پایپ‌لاین داده (bi5/ریسمپل/CSV) | `src/bot/data/dukascopy.py`, `resample.py`, `local.py` | ✅ فاز ۰-ب + دانلودر مقاوم به 503 (retry+backoff+کش، v0.2.1) — دانلود روی ماشین تو (اینترنت سندباکس allowlist است) |
 | موتور رژیم | `src/bot/regime/` | 🔜 فاز ۲ |
 | ۳ استراتژی | `src/bot/strategy/` | 🔜 فاز ۲ |
 | موتور بک‌تست | — | 🔜 فاز ۱ |

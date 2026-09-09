@@ -26,7 +26,9 @@ def main() -> None:
     ap.add_argument("--end", type=str, default=None, help="YYYY-MM-DD (پیش‌فرض: امروز)")
     ap.add_argument("--out", default=None, help="مسیر خروجی csv.gz")
     ap.add_argument("--cache", default="data/cache/duka", help="کش روزانه")
-    ap.add_argument("--workers", type=int, default=8)
+    ap.add_argument("--workers", type=int, default=3, help="نخ‌های همزمان — کم نگه دار تا 503 نخوری")
+    ap.add_argument("--retries", type=int, default=6, help="تلاش برای هر روز روی خطای موقت (503 و...)")
+    ap.add_argument("--retry-passes", type=int, default=3, help="پاس‌های تلاش مجدد برای روزهای جا‌مانده")
     args = ap.parse_args()
 
     end = date.fromisoformat(args.end) if args.end else date.today()
