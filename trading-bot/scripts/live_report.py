@@ -28,17 +28,20 @@ def main() -> None:
     if not p.exists():
         raise SystemExit(f"❌ ژورنال پیدا نشد: {p} — اول run_live.py را اجرا کن")
     conn = sqlite3.connect(p)
-    conn.row_factory = sqlite3.Row
 
-    trades = pd.DataFrame(conn.execute(
-        "SELECT * FROM trades WHERE status='closed' ORDER BY closed_at"
-    ).fetchall())
-    opens = pd.DataFrame(conn.execute(
-        "SELECT * FROM trades WHERE status='open'").fetchall())
-    eq = pd.DataFrame(conn.execute(
-        "SELECT * FROM equity ORDER BY ts").fetchall())
-    brk = pd.DataFrame(conn.execute(
-        "SELECT * FROM breaker_events ORDER BY ts").fetchall())
+    # read_sql_query: ستون‌ها حتی وقتی نتیجه خالی است نام درست دارند
+    # (pd.DataFrame(fetchall()) با sqlite3.Row ستون‌های [0,1] می‌سازد — باگ #1)
+    def q(sql: str) -> pd.DataFrame:
+        try:
+            return pd.read_sql_query(sql, conn)
+        except (sqlite3.OperationalError,
+                pd.errors.DatabaseError):   # جدول هنوز ساخته نشده
+            return pd.DataFrame()
+
+    trades = q("SELECT * FROM trades WHERE status='closed' ORDER BY closed_at")
+    opens = q("SELECT * FROM trades WHERE status='open'")
+    eq = q("SELECT * FROM equity ORDER BY ts")
+    brk = q("SELECT * FROM breaker_events ORDER BY ts")
 
     print("═══ گزارش دموی فوروارد ═══")
     if eq.empty:
