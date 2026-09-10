@@ -81,22 +81,35 @@ class BacktestResult:
 
 class Backtester:
     def __init__(self, bars: pd.DataFrame, strategy: Strategy,
-                 config: BacktestConfig | None = None):
+                 config: BacktestConfig | None = None, risk_policy=None):
+        """risk_policy: شیء با قرارداد RiskPolicy (ببین backtest/risk.py)
+        — گیت ورود + ضریب سایز + رویدادهای معامله/کندل."""
         if bars.empty:
             raise ValueError("دادهٔ کندل خالی است")
         self.cfg = config or BacktestConfig()
         self.bars = bars.sort_values("time").reset_index(drop=True)
         self.strategy = strategy
+        self.policy = risk_policy
+        self._min_lot_clamps = 0
 
     # ------------------------------------------------------------------ #
-    def _size_lots(self, stop_dist: float, equity: float) -> float:
+    def _size_lots(self, stop_dist: float, equity: float,
+                   mult: float = 1.0) -> float:
         if self.cfg.risk_pct is None:
-            return self.cfg.fixed_lots
-        if stop_dist <= 0:
-            return 0.0
-        raw = (equity * self.cfg.risk_pct) / (stop_dist * self.cfg.contract_oz)
-        lots = np.floor(raw / self.cfg.lot_step) * self.cfg.lot_step
-        return max(lots, self.cfg.min_lots)
+            lots = np.floor(self.cfg.fixed_lots * mult / self.cfg.lot_step) \
+                * self.cfg.lot_step
+        else:
+            if stop_dist <= 0:
+                return 0.0
+            raw = (equity * self.cfg.risk_pct * mult) / \
+                (stop_dist * self.cfg.contract_oz)
+            lots = np.floor(raw / self.cfg.lot_step) * self.cfg.lot_step
+        if lots < self.cfg.min_lots:
+            # کفِ لات بروکر — صادقانه بشمار تا گزارش بگوید
+            if equity > 0 and mult < 1.0:
+                self._min_lot_clamps += 1
+            return self.cfg.min_lots
+        return lots
 
     def _exit_check(self, p: _Pos, i: int) -> tuple[Optional[float], Optional[str]]:
         o, h, l = self._o[i], self._h[i], self._l[i]
@@ -156,6 +169,8 @@ class Backtester:
                            and (i - last_entry_i) >= cfg.cooldown_bars
                            and (cfg.spread_gate_usd is None
                                 or self._sp[i] <= cfg.spread_gate_usd))
+                if allowed and self.policy is not None:
+                    allowed = self.policy.allow_entry(t[i])
                 if allowed:
                     d, stop, rr = pending.direction, pending.stop, pending.rr
                     if d > 0:
@@ -163,7 +178,9 @@ class Backtester:
                     else:
                         fill = self._o[i] - cfg.slippage_usd
                     dist = abs(fill - stop)
-                    lots = self._size_lots(dist, realized)
+                    mult = (self.policy.size_multiplier()
+                            if self.policy is not None else 1.0)
+                    lots = self._size_lots(dist, realized, mult)
                     if lots > 0 and dist > 0:
                         target = (fill + rr * (fill - stop) if d > 0
                                   else fill - rr * (stop - fill))
@@ -192,6 +209,8 @@ class Backtester:
                     "lots": p.lots, "pnl": pnl, "r": pnl / p.risk_usd if p.risk_usd else 0.0,
                     "reason": reason, "bars_held": i - p.entry_i, "tag": p.tag,
                 })
+                if self.policy is not None:
+                    self.policy.on_trade_closed(trades[-1]["r"], t[i], realized)
             positions = still
 
             # --- ۳) equity شناوری + چک نابودی ----------------------------
@@ -202,6 +221,8 @@ class Backtester:
                 else:
                     float_pnl += (p.entry_fill - self._c[i]) * p.lots * cfg.contract_oz
             equity_curve[i] = realized + float_pnl
+            if self.policy is not None:
+                self.policy.on_bar_close(t[i], float(equity_curve[i]))
             if equity_curve[i] <= cfg.halt_equity:
                 halted, halt_time = True, pd.Timestamp(t[i])
                 for p in positions:  # بروکر همه را می‌بندد
@@ -249,6 +270,7 @@ class Backtester:
         eq = pd.DataFrame({"time": t, "equity": equity_curve})
         res = BacktestResult(trades_df, eq, halted=halted, halt_time=halt_time)
         res.metrics = self._metrics(trades_df, eq, cfg)
+        res.metrics["min_lot_clamps"] = self._min_lot_clamps
         return res
 
     # ------------------------------------------------------------------ #
