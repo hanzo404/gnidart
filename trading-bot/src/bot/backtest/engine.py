@@ -51,6 +51,9 @@ class BacktestConfig:
     cooldown_bars: int = 0            # حداقل فاصله بین دو ورود (تعداد کندل)
     stop_first_same_bar: bool = True
     halt_equity: float = 0.0          # توقف مثل margin call
+    # ریسک‌فری خودکار: وقتی close به be_at_frac مسیرِ TP رسید، استاپ به
+    # نقطه‌ی ورود منتقل می‌شود (None = خاموش — پیش‌فرض، رفتار تغییر نمی‌کند)
+    be_at_frac: Optional[float] = None
 
 
 class Strategy(Protocol):
@@ -68,6 +71,7 @@ class _Pos:
     lots: float
     risk_usd: float
     tag: str
+    be_done: bool = False
 
 
 @dataclass
@@ -212,6 +216,24 @@ class Backtester:
                 if self.policy is not None:
                     self.policy.on_trade_closed(trades[-1]["r"], t[i], realized)
             positions = still
+
+            # --- ۲.۵) ریسک‌فری خودکار (close این کندل → استاپ کندل بعد) ---
+            if cfg.be_at_frac is not None:
+                for p in positions:
+                    if p.be_done:
+                        continue
+                    if p.direction > 0:
+                        trig = p.entry_fill + (p.target - p.entry_fill) \
+                            * cfg.be_at_frac
+                        if self._c[i] >= trig:
+                            p.stop = max(p.stop, p.entry_fill)
+                            p.be_done = True
+                    else:
+                        trig = p.entry_fill - (p.entry_fill - p.target) \
+                            * cfg.be_at_frac
+                        if self._c[i] <= trig:
+                            p.stop = min(p.stop, p.entry_fill)
+                            p.be_done = True
 
             # --- ۳) equity شناوری + چک نابودی ----------------------------
             float_pnl = 0.0
