@@ -66,9 +66,11 @@ class BreakerPolicy:
     def size_multiplier(self) -> float:
         return self.breaker.size_multiplier()
 
-    def on_trade_closed(self, r: float, ts, equity: float) -> None:
-        for ev in self.breaker.on_trade_closed(r, pd.Timestamp(ts)):
+    def on_trade_closed(self, r: float, ts, equity: float) -> list:
+        out = self.breaker.on_trade_closed(r, pd.Timestamp(ts))
+        for ev in out:
             self._bump(ev.kind)
+        return out
 
     def on_bar_close(self, ts, equity: float) -> None:
         ts = pd.Timestamp(ts)

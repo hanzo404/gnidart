@@ -42,3 +42,11 @@ data:
 
 journal:
   path: data/journal.db   # SQLite — حافظه بلندمدت ربات
+
+live:                     # فاز ۵ — دموی فوروارد
+  direction_filter: long  # شواهد فاز ۴: فروش‌ها ۳ سال خالص‌زیان‌ده (−$1.5k)؛
+                          # پست‌مورتم ماهانه جهت را زیر نظر دارد
+  utc_offset: auto        # auto = قاعدهٔ EET/EEST (زمستان +۲، تابستان +۳)
+  history_bars: 800       # گرم‌شدن اندیکاتورهای رژیم
+  poll_seconds: 20
+  magic: 954001

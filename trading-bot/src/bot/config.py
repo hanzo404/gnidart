@@ -36,9 +36,10 @@ class RiskConfig:
 
 @dataclass
 class BreakerConfig:
-    derate_at: int = 2
-    deep_derate_at: int = 3
-    pause_at: int = 4
+    # هماهنگ با config.yaml — نردبان تنظیمی فاز ۳ (شواهد G4)
+    derate_at: int = 3
+    deep_derate_at: int = 4
+    pause_at: int = 5
     halt_at: int = 6
     pause_hours: float = 24.0
 
@@ -55,6 +56,16 @@ class JournalConfig:
 
 
 @dataclass
+class LiveConfig:
+    """فاز ۵ — اجرای فوروارد دمو."""
+    direction_filter: str = "long"   # شواهد فاز ۴: فروش‌ها خالص‌زیان‌ده بودند
+    utc_offset: str = "auto"         # auto = قاعدهٔ EET/EEST (سرور MetaQuotes)
+    history_bars: int = 800          # گرم‌شدن ADX/EMA/ATR
+    poll_seconds: int = 20
+    magic: int = 954001              # شناسهٔ سفارش‌های ربات در MT5
+
+
+@dataclass
 class BotConfig:
     project: str = "gnidart-trading-bot"
     mode: str = "backtest"
@@ -63,6 +74,7 @@ class BotConfig:
     breaker: BreakerConfig = field(default_factory=BreakerConfig)
     data: DataConfig = field(default_factory=DataConfig)
     journal: JournalConfig = field(default_factory=JournalConfig)
+    live: LiveConfig = field(default_factory=LiveConfig)
 
     @staticmethod
     def load(path: str | pathlib.Path) -> "BotConfig":
@@ -79,6 +91,7 @@ class BotConfig:
             ("breaker", cfg.breaker),
             ("data", cfg.data),
             ("journal", cfg.journal),
+            ("live", cfg.live),
         ):
             if isinstance(raw.get(section), dict):
                 for k, v in raw[section].items():
