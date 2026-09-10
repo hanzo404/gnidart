@@ -57,6 +57,7 @@ DATA LAYER ──► REGIME ENGINE ──► STRATEGY CORE (×3) ──► RISK 
 | قرارداد استراتژی/اجرا | `src/bot/strategy/base.py`, `src/bot/execution/base.py` | ✅ اینترفیس |
 | داده MT5 + Heartbeat | `src/bot/data/mt5_data.py`, `scripts/mt5_heartbeat.py` | ✅ کد آماده (اجرا روی ویندوز تو — راهنما: `SETUP.md`) |
 | آماده‌سازی داده (فیلتر پدینگ/آفست سرور/پروفایل اسپرد) | `src/bot/data/prepare.py` | ✅ فاز ۱ — آفست MT5=UTC+2/+3(DST) تشخیص داده شد؛ همبستگی M1 با duka=0.97 |
+| متا-لیبلینگ v1 (فاز ۶) | `src/bot/analysis/meta.py`, `scripts/run_phase6.py` | 🔬 v1 فیلترِ سخت: رد شد (PF 1.33 @ 4.4/ماه)؛ اما جداسازی دم بالا تکرارپذیر (WR 42% در Q4 هر دو منبع) → v2 = سایزدهی احتمال‌محور |
 | دموی فوروارد (فاز ۵) | `src/bot/live/runner.py`, `execution/mt5_adapter.py`, `scripts/run_live.py`, `scripts/live_report.py` | ✅ — حلقهٔ کامل زنده: داده→رژیم→گیت→ریسک→اجرا→ژورنال؛ dry-run و دمو؛ ۹۸ تست |
 | خودتحلیلی: تشخیص رشتهٔ باخت + پست‌مورتم آماری | `src/bot/analysis/diagnostics.py`, `postmortem.py` | ✅ فاز ۴ — ۴۹ نقطهٔ تشخیص؛ فقط مشاهده، رفتار معامله دست‌نخورده؛ یافته: فروش‌ها خالص‌زیان‌ده → آزمایش sandbox G6: PF 1.13→1.30 |
 | لایهٔ ریسک بک‌تست (سایزینگ %-ریسک + نردبان بریکر) | `src/bot/backtest/risk.py` | ✅ فاز ۳ — نردبان ۳/۴/۵/۶: DD −۶.۸٪، P(DD<−۱۵٪) ۳۶٪→۱۱٪، R حفظ شد |
