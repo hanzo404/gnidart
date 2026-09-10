@@ -19,10 +19,17 @@ from bot.regime.engine import CHAOS, TREND_DOWN, TREND_UP
 
 class GatedStrategy:
     def __init__(self, inner: Strategy, regime: np.ndarray,
-                 session_open_mask: np.ndarray):
+                 session_open_mask: np.ndarray,
+                 direction: int | None = None):
+        """direction: None=هر دو | +1 فقط خرید | -1 فقط فروش.
+
+        نمونهٔ کاربرد: وقتی لایهٔ تشخیص/پست‌مورتم شواهد داد که یک جهت
+        خالص‌زیان‌ده است، حذف آن یک «آزمایش sandbox» است — نه تغییر
+                        خودجوش. باید از walk-forward و تأیید انسانی رد شود."""
         self.inner = inner
         self.regime = np.asarray(regime)
         self.sess = np.asarray(session_open_mask, dtype=bool)
+        self.direction = direction
 
     def prepare(self, bars) -> None:
         self.inner.prepare(bars)
@@ -36,6 +43,8 @@ class GatedStrategy:
             return None
         sig = self.inner.on_bar(i)
         if sig is None:
+            return None
+        if self.direction is not None and sig.direction != self.direction:
             return None
         if sig.direction > 0 and r != TREND_UP:
             return None

@@ -57,6 +57,7 @@ DATA LAYER ──► REGIME ENGINE ──► STRATEGY CORE (×3) ──► RISK 
 | قرارداد استراتژی/اجرا | `src/bot/strategy/base.py`, `src/bot/execution/base.py` | ✅ اینترفیس |
 | داده MT5 + Heartbeat | `src/bot/data/mt5_data.py`, `scripts/mt5_heartbeat.py` | ✅ کد آماده (اجرا روی ویندوز تو — راهنما: `SETUP.md`) |
 | آماده‌سازی داده (فیلتر پدینگ/آفست سرور/پروفایل اسپرد) | `src/bot/data/prepare.py` | ✅ فاز ۱ — آفست MT5=UTC+2/+3(DST) تشخیص داده شد؛ همبستگی M1 با duka=0.97 |
+| خودتحلیلی: تشخیص رشتهٔ باخت + پست‌مورتم آماری | `src/bot/analysis/diagnostics.py`, `postmortem.py` | ✅ فاز ۴ — ۴۹ نقطهٔ تشخیص؛ فقط مشاهده، رفتار معامله دست‌نخورده؛ یافته: فروش‌ها خالص‌زیان‌ده → آزمایش sandbox G6: PF 1.13→1.30 |
 | لایهٔ ریسک بک‌تست (سایزینگ %-ریسک + نردبان بریکر) | `src/bot/backtest/risk.py` | ✅ فاز ۳ — نردبان ۳/۴/۵/۶: DD −۶.۸٪، P(DD<−۱۵٪) ۳۶٪→۱۱٪، R حفظ شد |
 | هارنس Walk-Forward + مونت‌کارلو | `src/bot/analysis/walkforward.py` | ✅ فاز ۲-ب — ۲۶ ماه OOS: PF 1.55 (پیش‌فرض ثابت: 1.39)؛ افت میانه MC −۱۰.۸٪ |
 | موتور رژیم + فیلتر سشن | `src/bot/regime/engine.py`, `src/bot/backtest/gate.py` | ✅ فاز ۲ — ADX هیسترزیس‌دار + EMA50 + ATR-ratio؛ نتیجه: PF 1.11→1.33، DD −26.3%→−10.8% |
