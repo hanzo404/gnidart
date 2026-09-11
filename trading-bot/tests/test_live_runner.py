@@ -376,5 +376,45 @@ class TestJournalMigration(unittest.TestCase):
             self.assertEqual(brk[0]["symbol"], "XAGUSD")
 
 
+class TestOncePerBar(unittest.TestCase):
+    """باگ pandas 3.x (2026-09-11): Timestamp == str → False؛ شرطِ «کندل جدید»
+    هیچ‌وقت True نمی‌شد → کل مسیر سیگنال هر ۲۰ ثانیه تکرار می‌شد (خلاف بک‌تست:
+    retry داخل کندل + ورود مجدد روی همان سیگنال بعد از استاپ). این تست‌ها قفلش می‌کنند."""
+
+    def test_same_bar_second_cycle_skips(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            r, prov, ad, jr = make_runner(tmp)
+            self.assertIn("ورود", r.on_cycle())          # کندل جدید → ورود
+            n_orders = len(ad.orders)
+            msg = r.on_cycle()                            # همان کندل، ۲۰ ثانیه بعد
+            self.assertIn("کندل جدیدی بسته نشده", msg)
+            self.assertEqual(len(ad.orders), n_orders)    # هیچ اتفاقی نیفتاد
+
+    def test_equity_one_row_per_bar(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            r, prov, ad, jr = make_runner(tmp, dry_run=True)
+            r.on_cycle()
+            r.on_cycle()                                  # همان کندل
+            r.on_cycle()                                  # همان کندل
+            n = jr.conn.execute("SELECT COUNT(*) c FROM equity").fetchone()["c"]
+            self.assertEqual(n, 1)                        # نه هر poll — هر کندل یک ردیف
+
+    def test_no_reentry_same_bar_after_stop(self):
+        """استاپ وسط کندل → سیگنال همان کندل قدیمی نباید دوباره ورود بزند."""
+        with tempfile.TemporaryDirectory() as tmp:
+            r, prov, ad, jr = make_runner(tmp, dry_run=True)
+            self.assertIn("ورود", r.on_cycle())
+            # کندل بعدی: سقوط به زیر استاپ → بسته شد
+            nxt = uptrend_bars(seed=3, gap_last=False, start="2026-06-02 12:00")
+            nxt.loc[len(nxt) - 1, "low"] = r.paper.stop - 2.0
+            prov.bars = nxt
+            r.on_cycle()
+            self.assertIsNone(r.paper)                 # استاپ خورد و بسته شد
+            # همان کندل دوباره (poll بعدی): نباید دوباره وارد شود — کندل جدید نیست
+            msg = r.on_cycle()
+            self.assertIn("کندل جدیدی بسته نشده", msg)
+            self.assertIsNone(r.paper)                 # هنوز بی‌پوزیشن ✓
+
+
 if __name__ == "__main__":
     unittest.main()

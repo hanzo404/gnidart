@@ -156,10 +156,13 @@ class LiveRunner:
         if len(bars) < 250:
             return "دادهٔ کافی برای گرم‌کردن اندیکاتورها نیست"
         h4 = self.provider.candles("H4", 150, closed_only=True)
-        new_bar = bars["time"].iloc[-1]
+        # نکتهٔ pandas 3.x: Timestamp == str دیگر True نیست → هر دو طرف str
+        # (باگ فاز ۵: شرط هیچ‌وقت True نمی‌شد و کل مسیر سیگنال هر poll تکرار
+        #  می‌شد؛ ضد-بک‌تست: retry داخل کندل + ورود مجدد بعد از استاپِ همان کندل)
+        new_bar = str(bars["time"].iloc[-1])
         if new_bar == self.state.get("last_bar_time"):
             return "کندل جدیدی بسته نشده"
-        self.state["last_bar_time"] = str(new_bar)
+        self.state["last_bar_time"] = new_bar
 
         now_server = pd.Timestamp(new_bar) + pd.Timedelta(minutes=15)
         off = self._offset_now(now_server)
