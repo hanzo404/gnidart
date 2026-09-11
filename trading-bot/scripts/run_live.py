@@ -95,4 +95,10 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        # Ctrl+C = توقف عمدی؛ پیام خداحافظی را finallyِ داخل main چاپ کرده
+        # (👋 اتصال بسته شد). این‌جا فقط جلوی traceback زائد پایتون را
+        # می‌گیریم تا خروجی تمیز باشد.
+        pass
