@@ -59,12 +59,13 @@ class TestLiveReport(unittest.TestCase):
             js.close()
             out = run_report(db)
             self.assertIn("معاملات بسته‌شده: 0", out)
-            self.assertIn("equity آخرین", out)
+            self.assertIn("سرمایهٔ هر آستین", out)
+            self.assertIn("XAUUSD: آخرین", out)   # ردیف بدون symbol = طلا
             self.assertIn("ضربان", out)
-            self.assertIn("فعال است", out)      # چرخه‌ی تازه → زنده
+            self.assertIn("✅", out)              # چرخهٔ تازه → زنده
 
     def test_stale_heartbeat_warns(self):
-        """آخرین چرخه قدیمی → هشدار «ربات احتمالاً خاموش»."""
+        """آخرین چرخه قدیمی → هشدار خاموشی (⚠️ نه ✅)."""
         with tempfile.TemporaryDirectory() as td:
             db = pathlib.Path(td) / "journal.db"
             js = Journal(str(db))
@@ -74,8 +75,8 @@ class TestLiveReport(unittest.TestCase):
             js.close()
             out = run_report(db)
             self.assertIn("ضربان", out)
-            self.assertIn("خاموش است", out)
-            self.assertNotIn("فعال است", out)
+            self.assertIn("⚠️", out)
+            self.assertNotIn("✅", out)
 
     def test_full_journal_renders(self):
         """معامله + بریکر + equity → همه بخش‌ها بدون خطا."""
@@ -95,9 +96,31 @@ class TestLiveReport(unittest.TestCase):
             js.close()
             out = run_report(db)
             self.assertIn("معاملات بسته‌شده: 1", out)
+            self.assertIn("آستین XAUUSD", out)
             self.assertIn("نرخ برد", out)
             self.assertIn("رویدادهای بریکر", out)
-            self.assertIn("equity آخرین", out)
+            self.assertIn("XAUUSD: آخرین $", out)
+
+    def test_multi_symbol_sections(self):
+        """فاز ۷: طلا + نقره در یک ژورنال → هر آستین بخش و ضربان خودش."""
+        with tempfile.TemporaryDirectory() as td:
+            db = pathlib.Path(td) / "journal.db"
+            js = Journal(str(db))
+            t0 = datetime.now() - timedelta(minutes=10)
+            tid = js.open_trade(t0, "XAGUSD", 1, "fvg", "A",
+                                74.10, 74.00, 74.35, 0.01,
+                                regime="TREND_UP")
+            js.close_trade(tid, t0 + timedelta(hours=1), 74.35, 2.5)
+            js.record_equity(t0, 3000.0, symbol="XAUUSD")
+            js.record_equity(t0 + timedelta(minutes=5), 3000.0,
+                             symbol="XAGUSD")
+            js.close()
+            out = run_report(db)
+            self.assertIn("آستین XAGUSD", out)          # بخش جدا برای نقره
+            self.assertIn("XAUUSD: آخرین چرخه", out)    # ضربان جدا برای طلا
+            self.assertIn("XAGUSD: آخرین چرخه", out)    # ضربان جدا برای نقره
+            self.assertIn("سرمایهٔ هر آستین", out)
+            self.assertIn("معاملات بسته‌شده: 1", out)
 
 
 if __name__ == "__main__":

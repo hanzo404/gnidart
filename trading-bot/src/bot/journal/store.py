@@ -41,24 +41,41 @@ CREATE TABLE IF NOT EXISTS breaker_events (
     kind            TEXT NOT NULL,
     detail          TEXT,
     streak          INTEGER,
-    size_multiplier REAL
+    size_multiplier REAL,
+    symbol          TEXT
 );
 CREATE TABLE IF NOT EXISTS equity (
     ts     TEXT NOT NULL,
-    equity REAL NOT NULL
+    equity REAL NOT NULL,
+    symbol TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_trades_opened ON trades(opened_at);
 CREATE INDEX IF NOT EXISTS idx_trades_status ON trades(status);
 CREATE INDEX IF NOT EXISTS idx_breaker_ts ON breaker_events(ts);
+CREATE INDEX IF NOT EXISTS idx_equity_ts ON equity(ts);
 """
 
 
 class Journal:
     def __init__(self, path: str) -> None:
-        self.conn = sqlite3.connect(path)
+        # فاز ۷ (چند-نمادی): دو پروسهٔ همزمان (طلا+نقره) روی همین فایل می‌نویسند
+        # → WAL + busy_timeout تا نوشتن‌های کوتاه همدیگر را قفل نکنند
+        self.conn = sqlite3.connect(path, timeout=15)
         self.conn.row_factory = sqlite3.Row
+        self.conn.execute("PRAGMA journal_mode=WAL")
+        self.conn.execute("PRAGMA busy_timeout=15000")
         self.conn.executescript(SCHEMA)
+        self._migrate()
         self.conn.commit()
+
+    def _migrate(self) -> None:
+        """دیتابیس‌های قدیمی (فاز ۵): ستون symbol را بدون از دست رفتن داده اضافه کن."""
+        for table in ("equity", "breaker_events"):
+            cols = {r["name"] for r in self.conn.execute(
+                f"PRAGMA table_info({table})")}
+            if "symbol" not in cols:
+                self.conn.execute(
+                    f"ALTER TABLE {table} ADD COLUMN symbol TEXT")
 
     # ----------------写入---------------- #
     def open_trade(
@@ -106,16 +123,21 @@ class Journal:
         self.conn.commit()
 
     def record_breaker_event(self, ts: datetime, kind: str, detail: str,
-                             streak: int, size_multiplier: float) -> None:
+                             streak: int, size_multiplier: float,
+                             symbol: Optional[str] = None) -> None:
         self.conn.execute(
-            "INSERT INTO breaker_events (ts, kind, detail, streak, size_multiplier) VALUES (?,?,?,?,?)",
-            (ts.isoformat(), kind, detail, streak, size_multiplier),
+            "INSERT INTO breaker_events (ts, kind, detail, streak, size_multiplier, symbol)"
+            " VALUES (?,?,?,?,?,?)",
+            (ts.isoformat(), kind, detail, streak, size_multiplier, symbol),
         )
         self.conn.commit()
 
-    def record_equity(self, ts: datetime, equity: float) -> None:
-        self.conn.execute("INSERT INTO equity (ts, equity) VALUES (?,?)",
-                          (ts.isoformat(), equity))
+    def record_equity(self, ts: datetime, equity: float,
+                      symbol: Optional[str] = None) -> None:
+        self.conn.execute(
+            "INSERT INTO equity (ts, equity, symbol) VALUES (?,?,?)",
+            (ts.isoformat(), equity, symbol),
+        )
         self.conn.commit()
 
     # ----------------读取---------------- #

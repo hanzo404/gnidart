@@ -33,12 +33,17 @@ def main() -> None:
     ap.add_argument("--ack", action="store_true",
                     help="رفع halt بریکر بعد از بازبینی انسانی")
     ap.add_argument("--config", default="config/config.yaml")
-    ap.add_argument("--state", default="data/live_state.json")
+    ap.add_argument("--state", default=None,
+                    help="پیش‌فرض: طلا data/live_state.json، نماد دیگر data/live_state_<sym>.json")
     args = ap.parse_args()
 
     cfg = BotConfig.load(args.config)
     symbol = args.symbol or (cfg.trading.symbols[0] if cfg.trading.symbols
                              else "XAUUSD")
+    # فاز ۷: هر آستین state خودش را دارد — دو نماد هرگز یک فایل را نمی‌نویسند
+    if args.state is None:
+        args.state = ("data/live_state.json" if symbol == "XAUUSD"
+                      else f"data/live_state_{symbol.lower()}.json")
 
     # ---- وایرینگ (فقط این‌جا import های MT5 انجام می‌شوند) ----
     from bot.data.mt5_data import MT5DataProvider
@@ -70,10 +75,14 @@ def main() -> None:
             return
 
         mode = "DRY-RUN (کاغذی)" if args.dry_run else "دموی واقعی"
-        print(f"\n🤖 فاز ۵ | حالت: {mode} | سیمبل {symbol} | M15")
+        p = cfg.profile_for(symbol)
+        print(f"\n🤖 فاز ۵/۷ | حالت: {mode} | سیمبل {symbol} | M15")
+        print(f"   پروفایل: قرارداد {p.contract_size:.0f} | بافر استاپ "
+              f"${p.sl_pad} | گیت اسپرد ${p.max_spread_usd} | سقف لات "
+              f"{p.max_lots} | حداقل‌لات: {p.min_lot_policy}")
         print(f"   فیلتر جهت: {cfg.live.direction_filter} | "
               f"ریسک: {cfg.risk.risk_per_trade:.1%}/معامله × نردبان بریکر")
-        print(f"   ژورنال: {cfg.journal.path} | وضعیت: {args.state}")
+        print(f"   ژورنال: {cfg.journal.path} (مشترک، ستون symbol) | وضعیت: {args.state}")
         print("   Ctrl+C = توقف تمیز (استاپ‌ها سروری‌اند)\n")
 
         poll = cfg.live.poll_seconds

@@ -41,7 +41,7 @@ data:
   cache_dir: data/cache
 
 journal:
-  path: data/journal.db   # SQLite — حافظه بلندمدت ربات
+  path: data/journal.db   # SQLite — حافظه بلندمدت ربات (مشترک بین آستین‌ها؛ ستون symbol جدا می‌کند)
 
 live:                     # فاز ۵ — دموی فوروارد
   direction_filter: long  # شواهد فاز ۴: فروش‌ها ۳ سال خالص‌زیان‌ده (−$1.5k)؛
@@ -50,3 +50,23 @@ live:                     # فاز ۵ — دموی فوروارد
   history_bars: 800       # گرم‌شدن اندیکاتورهای رژیم
   poll_seconds: 20
   magic: 954001
+
+symbol_profiles:            # فاز ۷ — پارامترهای وابسته به نماد (همهٔ مقادیر دلاری)
+  XAUUSD:                   # = رفتار فاز ۵؛ آستین زندهٔ دمو دست نمی‌خورد
+    contract_size: 100.0    # ۱ لات = ۱۰۰ اونس
+    sl_pad: 0.50            # بافر استاپ دلاری (فاز ۳ walk-forward)
+    max_spread_usd: 0.40    # درس v0: بالای ۴۰ سنت ممنوع
+    max_lots: 0.10
+    min_lot_policy: force   # رفتار فعلی طلا — تغییر نمی‌کند
+    digits: 2
+    baseline_wr: 0.348      # walk-forward طلا
+    direction: long
+  XAGUSD:                   # فاز ۷ first-look: PF 1.21 @ اسپرد $0.04، 7.0 معامله/ماه
+    contract_size: 5000.0   # ۱ لات = ۵۰۰۰ اونس
+    sl_pad: 0.01093         # 0.50 × k=0.02186 (نسبت ATR نقره/طلا) — بدون re-tuning
+    max_spread_usd: 0.06    # موقت: ~۳× اسپرد اندازه‌گیری‌شدهٔ دمو ($0.018)؛ با تاریخچهٔ MT5 نهایی می‌شود
+    max_lots: 0.05
+    min_lot_policy: skip    # اگر حجم محاسبه‌شده < ۰.۰۱ لات → معامله نکن (ریسک > بودجه)
+    digits: 3
+    baseline_wr: 0.308      # first-look نقره
+    direction: long

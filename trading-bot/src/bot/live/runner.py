@@ -28,7 +28,7 @@ from bot.analysis.diagnostics import VERDICT_FA, diagnose_streak
 from bot.backtest.gate import GatedStrategy
 from bot.backtest.risk import BreakerPolicy
 from bot.backtest.v0_strategy import V0Strategy
-from bot.config import BotConfig
+from bot.config import BotConfig, SymbolProfile
 from bot.execution.base import ExecutionAdapter, Fill, Order
 from bot.journal.store import Journal
 from bot.regime.engine import NAMES as REGIME_NAMES
@@ -75,6 +75,11 @@ class LiveRunner:
         self.journal = journal
         self.cfg = cfg
         self.symbol = symbol
+        # فاز ۷: پارامترهای دلاری از پروفایل نماد (طلا/نقره/…) — نه هاردکد
+        self.profile = (cfg.profile_for(symbol)
+                        if hasattr(cfg, "profile_for") else SymbolProfile())
+        if symbol not in getattr(cfg, "symbol_profiles", {}):
+            print_fn(f"⚠️ پروفایل {symbol} در config تعریف نشده — پیش‌فرض طلا اعمال شد")
         self.dry_run = dry_run
         self.state_path = pathlib.Path(state_path)
         self._print = print_fn
@@ -92,8 +97,10 @@ class LiveRunner:
         self.policy = BreakerPolicy(self.breaker)
         self.utc_offset = utc_offset  # None → قاعدهٔ EET/EEST خودکار
         self.direction_map = {"long": 1, "short": -1, "both": None}
-        self.direction = self.direction_map.get(
-            str(getattr(cfg.live, "direction_filter", "both")).lower(), None)
+        # جهت: پروفایل نماد مقدم است؛ نبود → فیلتر سراسری live
+        direction = (self.profile.direction
+                     or getattr(cfg.live, "direction_filter", "both"))
+        self.direction = self.direction_map.get(str(direction).lower(), None)
 
     # ------------------------------------------------------------------ #
     # وضعیت: ذخیره/بارگذاری
@@ -132,7 +139,7 @@ class LiveRunner:
         if ev:
             self.journal.record_breaker_event(
                 datetime.now(), "ack", ev.detail, self.breaker.streak,
-                self.breaker.size_multiplier())
+                self.breaker.size_multiplier(), symbol=self.symbol)
         self._save_state()
 
     # ------------------------------------------------------------------ #
@@ -163,10 +170,17 @@ class LiveRunner:
         self._manage_position(bars, now_server)
 
         # ---- ۲) چک ماهانهٔ بریکر --------------------------------------
+        # فاز ۷: «سرمایهٔ این آستین» = مبنای اولین چرخه + سود انباشتهٔ همین نماد.
+        # (بالانس اکانت مشترک است؛ اگر آن را می‌دادیم، ضررِ نقره بریکرِ طلا را می‌کشید)
         try:
             bal = self.provider.account_summary()
-            equity = float(bal.get("balance", 0.0))
-            self.journal.record_equity(datetime.now(), equity)
+            balance = float(bal.get("balance", 0.0))
+            if self.state.get("sleeve_base") is None:
+                self.state["sleeve_base"] = balance   # اولین اجرای این آستین
+            equity = (float(self.state["sleeve_base"])
+                      + float(self.state.get("sleeve_pnl", 0.0)))
+            self.journal.record_equity(datetime.now(), equity,
+                                       symbol=self.symbol)
             self.policy.on_bar_close(datetime.now(), equity)
             if self.breaker.halted:
                 self._print("⛔ بریکر HALT فعال است — ورودی جدید نمی‌گذارم. "
@@ -218,7 +232,7 @@ class LiveRunner:
     def _close_paper(self, price: float, reason: str) -> None:
         p = self.paper
         profit = ((price - p.entry) if p.direction > 0
-                  else (p.entry - price)) * p.units * 100.0
+                  else (p.entry - price)) * p.units * self.profile.contract_size
         r = profit / p.risk_usd if p.risk_usd else 0.0
         self.paper = None
         self._on_trade_closed(profit, r, datetime.now(), price, reason)
@@ -228,12 +242,16 @@ class LiveRunner:
         tid = self.state.pop("trade_id", None)
         self.state.pop("ticket", None)
         self.state.pop("risk_usd", None)
+        # سود انباشتهٔ همین آستین — پایهٔ بریکر ماهانهٔ per-sleeve
+        self.state["sleeve_pnl"] = (float(self.state.get("sleeve_pnl", 0.0))
+                                    + float(profit))
         if tid is not None:
             self.journal.close_trade(tid, ts, float(exit_price), float(r))
         events = self.policy.on_trade_closed(r, ts, profit) or []
         for ev in events:
             self.journal.record_breaker_event(
-                ts, ev.kind, ev.detail, ev.streak, ev.size_multiplier)
+                ts, ev.kind, ev.detail, ev.streak, ev.size_multiplier,
+                symbol=self.symbol)
             self._print(f"⚡ بریکر: {ev.kind} — {ev.detail}")
         # بعد از هر derate/deep_derate: گزارش تشخیصی (لایهٔ فاز ۴)
         if any(ev.kind in ("derate", "deep_derate", "pause", "halt",
@@ -254,14 +272,15 @@ class LiveRunner:
             bars = self.provider.candles("M15", 600, closed_only=True)
             reg = RegimeEngine().compute(bars)
             rep = diagnose_streak(df, streak=max(self.breaker.streak, 3),
-                                  regime_df=reg, baseline_wr=0.348, ts=ts)
+                                  regime_df=reg,
+                                  baseline_wr=self.profile.baseline_wr, ts=ts)
             self._print(f"🔬 تشخیص: {VERDICT_FA[rep.verdict]} "
                         f"(اطمینان: {rep.confidence})")
             for f in rep.findings:
                 self._print(f"   • {f}")
             self.journal.record_breaker_event(
                 ts, "diagnostic", f"{rep.verdict}: {' | '.join(rep.findings)}",
-                rep.streak, self.breaker.size_multiplier())
+                rep.streak, self.breaker.size_multiplier(), symbol=self.symbol)
         except Exception as e:  # noqa: BLE001 — تشخیص هرگز نباید حلقه را بکشد
             self._print(f"(تشخیص ناموفق: {e})")
 
@@ -290,8 +309,9 @@ class LiveRunner:
             spread_usd = float(q["spread_points"]) * float(q["point"])
         except Exception as e:  # noqa: BLE001
             return f"تیک ناموجود ({e})"
-        if spread_usd > self.cfg.trading.max_spread_usd:
-            return f"اسپرد ${spread_usd:.2f} > گیت ${self.cfg.trading.max_spread_usd}"
+        if spread_usd > self.profile.max_spread_usd:
+            return (f"اسپرد ${spread_usd:.3f} > گیت "
+                    f"${self.profile.max_spread_usd} ({self.symbol})")
 
         # بریکر
         if not self.policy.allow_entry(now_server.to_pydatetime()):
@@ -300,7 +320,7 @@ class LiveRunner:
         # رژیم + سیگنال
         reg = RegimeEngine().compute(bars)
         regime_now = int(reg["regime"].iloc[-1])
-        inner = V0Strategy(h4, rr=2.5)
+        inner = V0Strategy(h4, rr=2.5, sl_pad=self.profile.sl_pad)
         inner.prepare(bars)
         sig = inner.on_bar(len(bars) - 1)
         if sig is None:
@@ -313,7 +333,7 @@ class LiveRunner:
         if regime_now == CHAOS:
             return "رژیم CHAOS"
 
-        # سایز
+        # سایز — ضریب قرارداد از پروفایل نماد (طلا ۱۰۰، نقره ۵۰۰۰)
         quote_bid = q["bid"]
         entry_est = q["ask"] if sig.direction > 0 else quote_bid
         dist = abs(entry_est - sig.stop)
@@ -321,9 +341,15 @@ class LiveRunner:
             return "فاصلهٔ استاپ نامعتبر"
         mult = self.policy.size_multiplier()
         risk_usd = equity * self.cfg.risk.risk_per_trade * mult
-        lots = int(risk_usd / (dist * 100.0) / 0.01) * 0.01  # گام 0.01
-        lots = max(lots, 0.01)
-        lots = min(lots, 0.10)  # سقف عقل‌سنجی دمو
+        lots = int(risk_usd / (dist * self.profile.contract_size)
+                   / 0.01) * 0.01  # گام 0.01
+        if lots < 0.01:
+            # سیاست حداقل‌لات (تصمیم فاز ۷): طلا force (رفتار قبل)، نقره skip
+            if self.profile.min_lot_policy == "skip":
+                return (f"حجم {risk_usd / (dist * self.profile.contract_size):.3f} "
+                        f"لات < حداقل ۰.۰۱ — استاپِ دوردست، ریسک > بودجه → رد")
+            lots = 0.01
+        lots = min(lots, self.profile.max_lots)  # سقف عقل‌سنجی دمو
         tp = (entry_est + 2.5 * (entry_est - sig.stop) if sig.direction > 0
               else entry_est - 2.5 * (sig.stop - entry_est))
 
@@ -336,12 +362,14 @@ class LiveRunner:
             self.paper = PaperPosition(
                 id="paper", direction=sig.direction, units=lots,
                 entry=float(entry_est), stop=float(sig.stop),
-                target=float(tp), risk_usd=dist * lots * 100.0)
+                target=float(tp),
+                risk_usd=dist * lots * self.profile.contract_size)
             fill = Fill(order_id="paper", ts=datetime.now(),
                         price=float(entry_est), units=lots)
         else:
             fill = self.adapter.place_order(order)
 
+        risk_usd_final = dist * lots * self.profile.contract_size
         tid = self.journal.open_trade(
             opened_at=datetime.now(), symbol=self.symbol,
             direction=sig.direction, strategy="v0_fvg_gated", grade="A",
@@ -349,20 +377,22 @@ class LiveRunner:
             size_units=lots, regime=REGIME_NAMES.get(regime_now),
             features={"spread_usd": round(spread_usd, 3),
                       "regime": REGIME_NAMES.get(regime_now),
-                      "mult": mult, "risk_usd": round(dist * lots * 100.0, 2),
+                      "mult": mult, "risk_usd": round(risk_usd_final, 2),
                       "session_utc": f"{entry_utc:%H:%M}",
                       "dry_run": self.dry_run},
             reason="M15 FVG + regime gate")
         self.state["ticket"] = fill.order_id
         self.state["trade_id"] = tid
-        self.state["risk_usd"] = dist * lots * 100.0
+        self.state["risk_usd"] = risk_usd_final
         tday = str(now_server.date())
         if self.state.get("last_entry_date") != tday:
             self.state["last_entry_date"] = tday
             self.state["trades_today"] = 0
         self.state["trades_today"] = int(self.state.get("trades_today", 0)) + 1
+        d = self.profile.digits
         self._print(f"{'🧪' if self.dry_run else '📤'} ورود "
                     f"{'خرید' if sig.direction > 0 else 'فروش'} {lots} لات @ "
-                    f"{fill.price:.2f} | SL {sig.stop:.2f} | TP {tp:.2f} | "
-                    f"رژیم {REGIME_NAMES.get(regime_now)} | اسپرد ${spread_usd:.2f}")
+                    f"{fill.price:.{d}f} | SL {sig.stop:.{d}f} | TP {tp:.{d}f} | "
+                    f"رژیم {REGIME_NAMES.get(regime_now)} | اسپرد ${spread_usd:.3f} "
+                    f"| {self.symbol}")
         return "ورود انجام شد"

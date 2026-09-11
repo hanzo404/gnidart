@@ -18,23 +18,27 @@ from bot.live.runner import LiveRunner, us_dst_active
 
 
 def uptrend_bars(n=600, seed=7, gap_last=True, start="2026-06-01 12:00",
-                freq="15min"):
-    """M15 صعودی با FVG صعودی روی آخرین کندلِ بسته."""
+                freq="15min", scale=1.0):
+    """M15 صعودی با FVG صعودی روی آخرین کندلِ بسته.
+
+    scale=1.0 → مقیاس طلا (فیکسچرهای فاز ۵، دست‌نخورده)
+    scale=0.015 → مقیاس نقره (~$30)؛ scale=0.06 → نقره با استاپ دور (تست skip)
+    """
     rng = np.random.default_rng(seed)
-    step = rng.normal(1.2, 0.6, n)
+    step = rng.normal(1.2, 0.6, n) * scale
     open_ = 2000.0 + np.concatenate([[0], np.cumsum(step[:-1])])
     close = open_ + step
-    high = np.maximum(open_, close) + 0.5
-    low = np.minimum(open_, close) - 0.5
+    high = np.maximum(open_, close) + 0.5 * scale
+    low = np.minimum(open_, close) - 0.5 * scale
     t = pd.date_range(start, periods=n, freq=freq)
     df = pd.DataFrame({"time": t, "open": open_, "high": high, "low": low,
                        "close": close, "tick_volume": 100.0, "spread": 14.0})
     if gap_last:  # FVG صعودی: low[i] > high[i-2]
         i = n - 1
-        df.loc[i, "low"] = df.loc[i - 2, "high"] + 1.0
-        df.loc[i, "open"] = df.loc[i - 1, "close"] + 0.5
-        df.loc[i, "close"] = df.loc[i, "open"] + 1.5
-        df.loc[i, "high"] = df.loc[i, "close"] + 0.5
+        df.loc[i, "low"] = df.loc[i - 2, "high"] + 1.0 * scale
+        df.loc[i, "open"] = df.loc[i - 1, "close"] + 0.5 * scale
+        df.loc[i, "close"] = df.loc[i, "open"] + 1.5 * scale
+        df.loc[i, "high"] = df.loc[i, "close"] + 0.5 * scale
     return df
 
 
@@ -47,9 +51,11 @@ def h4_bars(n=150, start="2026-05-01 00:00"):
 
 
 class FakeProvider:
-    def __init__(self, bars, h4):
+    def __init__(self, bars, h4, point=0.01, spread_points=14.0):
         self.bars = bars
         self.h4 = h4
+        self.point = point
+        self.spread_points = spread_points
 
     def candles(self, timeframe, count, closed_only=True):
         return (self.bars if timeframe == "M15" else self.h4).tail(count) \
@@ -61,8 +67,8 @@ class FakeProvider:
 
     def live_quote(self):
         bid = float(self.bars["close"].iloc[-1])
-        return {"bid": bid, "ask": bid + 0.14, "point": 0.01,
-                "spread_points": 14.0}
+        return {"bid": bid, "ask": bid + self.point * self.spread_points,
+                "point": self.point, "spread_points": self.spread_points}
 
 
 class FakeAdapter:
@@ -88,9 +94,11 @@ class FakeAdapter:
         return {"exit_price": 1990.0, "profit": -15.0}
 
 
-def make_runner(tmp, bars=None, h4=None, dry_run=False, **kw):
+def make_runner(tmp, bars=None, h4=None, dry_run=False, point=0.01,
+                spread_points=14.0, **kw):
     provider = FakeProvider(bars if bars is not None else uptrend_bars(),
-                            h4 if h4 is not None else h4_bars())
+                            h4 if h4 is not None else h4_bars(),
+                            point=point, spread_points=spread_points)
     adapter = FakeAdapter()
     journal = Journal(str(Path(tmp) / "journal.db"))
     cfg = BotConfig()
@@ -218,6 +226,154 @@ class TestPaperLifecycle(unittest.TestCase):
                             utc_offset=180)
             self.assertAlmostEqual(r2.breaker.size_multiplier(), 0.5)
             self.assertEqual(r2.breaker.streak, 3)
+
+
+# ═══════════════════ فاز ۷: چند-نمادی (طلا + نقره) ═══════════════════
+class TestSymbolProfiles(unittest.TestCase):
+    def test_gold_profile_untouched(self):
+        """رفتار آستین زندهٔ طلا دقیقاً مثل فاز ۵ می‌ماند."""
+        g = BotConfig().profile_for("XAUUSD")
+        self.assertEqual(g.contract_size, 100.0)
+        self.assertEqual(g.sl_pad, 0.50)
+        self.assertEqual(g.max_spread_usd, 0.40)
+        self.assertEqual(g.max_lots, 0.10)
+        self.assertEqual(g.min_lot_policy, "force")
+        self.assertEqual(g.digits, 2)
+        self.assertAlmostEqual(g.baseline_wr, 0.348)
+
+    def test_silver_profile(self):
+        s = BotConfig().profile_for("XAGUSD")
+        self.assertEqual(s.contract_size, 5000.0)
+        self.assertAlmostEqual(s.sl_pad, 0.01093)
+        self.assertEqual(s.max_spread_usd, 0.06)
+        self.assertEqual(s.max_lots, 0.05)
+        self.assertEqual(s.min_lot_policy, "skip")
+        self.assertEqual(s.digits, 3)
+        self.assertAlmostEqual(s.baseline_wr, 0.308)
+
+    def test_yaml_profiles_load(self):
+        cfg = BotConfig.load(Path(__file__).parents[1] / "config" / "config.yaml")
+        self.assertEqual(cfg.profile_for("XAGUSD").contract_size, 5000.0)
+        self.assertEqual(cfg.profile_for("XAUUSD").sl_pad, 0.50)
+
+
+class TestSilverSleeve(unittest.TestCase):
+    """آستین نقره: سایزینگ با قرارداد ۵۰۰۰ اونسی، گیت اسپرد، سیاست skip."""
+
+    def _silver(self, tmp, bars=None, dry_run=True, **kw):
+        kw.setdefault("point", 0.001)
+        kw.setdefault("spread_points", 18.0)     # $0.018 — اندازه‌گیری دمو
+        bars = bars if bars is not None else uptrend_bars(scale=0.015)
+        r, prov, ad, jr = make_runner(tmp, bars=bars, dry_run=dry_run,
+                                      symbol="XAGUSD", **kw)
+        return r, prov, ad, jr
+
+    def test_silver_entry_sizing_and_journal(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            r, prov, ad, jr = self._silver(tmp)
+            self.assertIn("ورود", r.on_cycle())
+            p = r.paper
+            self.assertIsNotNone(p)
+            # بودجه = 0.5% × $3000 = $15؛ ریسک واقعی = dist × لات × 5000
+            self.assertGreaterEqual(p.units, 0.01)
+            self.assertLessEqual(p.units, 0.05)          # سقف نقره
+            self.assertLessEqual(p.risk_usd, 15.0)       # هرگز بیشتر از بودجه
+            rows = jr.recent_trades(10, status="open")
+            self.assertEqual(rows[0]["symbol"], "XAGUSD")
+            self.assertAlmostEqual(rows[0]["features"]["spread_usd"],
+                                   0.018, places=3)
+            # استاپ با نقره‌ای‌شده: pad $0.01093 نه $0.50
+            self.assertLess(p.stop, p.entry)
+
+    def test_silver_spread_gate(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            r, prov, ad, _ = self._silver(tmp)
+            q = prov.live_quote()
+            prov.live_quote = lambda: {**q, "spread_points": 80.0}  # $0.08
+            msg = r.on_cycle()
+            self.assertEqual(len(ad.orders), 0)
+            self.assertIn("اسپرد", msg)
+
+    def test_silver_min_lot_skip(self):
+        """استاپِ دور → حجم < ۰.۰۱ لات → نقره معامله را رد می‌کند (طلا force داشت)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            bars = uptrend_bars(scale=0.06)   # دامنهٔ ۵ کندل ~$0.5 → حجم < حداقل
+            r, prov, ad, jr = self._silver(tmp, bars=bars)
+            msg = r.on_cycle()
+            self.assertEqual(len(ad.orders), 0)
+            self.assertIn("رد", msg)
+            self.assertEqual(len(jr.recent_trades(10, status="open")), 0)
+
+    def test_silver_paper_close_and_sleeve_pnl(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            r, prov, ad, jr = self._silver(tmp)
+            self.assertIn("ورود", r.on_cycle())
+            risk = r.paper.risk_usd
+            # بستن روی تارگت: سود = 2.5R با قرارداد ۵۰۰۰
+            nxt = uptrend_bars(seed=3, gap_last=False, scale=0.015,
+                               start="2026-06-02 12:00")
+            nxt.loc[len(nxt) - 1, "high"] = r.paper.target + 0.01
+            nxt.loc[len(nxt) - 1, "close"] = r.paper.target
+            prov.bars = nxt
+            r.on_cycle()
+            closed = jr.recent_trades(10, status="closed")
+            self.assertEqual(len(closed), 1)
+            self.assertAlmostEqual(closed[0]["r_multiple"], 2.5, places=1)
+            # سود انباشتهٔ آستین = +2.5R (مبنای بریکر ماهانهٔ per-sleeve)
+            self.assertAlmostEqual(r.state["sleeve_pnl"], 2.5 * risk, places=3)
+
+    def test_sleeve_equity_not_raw_balance(self):
+        """بریکر ماهانه باید سودِ همین نماد را ببیند نه بالانس کل اکانت."""
+        with tempfile.TemporaryDirectory() as tmp:
+            r, prov, ad, jr = self._silver(tmp)
+            self.assertIn("ورود", r.on_cycle())
+            risk = r.paper.risk_usd
+            nxt = uptrend_bars(seed=3, gap_last=False, scale=0.015,
+                               start="2026-06-02 12:00")
+            nxt.loc[len(nxt) - 1, "low"] = r.paper.stop - 0.01
+            prov.bars = nxt
+            r.on_cycle()
+            # چرخهٔ بعدی (بدون سیگنال): equity ثبت‌شده = 3000 − risk
+            prov.bars = uptrend_bars(seed=5, gap_last=False, scale=0.015,
+                                     start="2026-06-03 12:00")
+            r.on_cycle()
+            rows = jr.conn.execute(
+                "SELECT equity, symbol FROM equity ORDER BY ts").fetchall()
+            self.assertAlmostEqual(rows[-1]["equity"], 3000.0 - risk,
+                                   places=3)
+            self.assertEqual(rows[-1]["symbol"], "XAGUSD")
+
+
+class TestJournalMigration(unittest.TestCase):
+    """DB فاز ۵ (بدون ستون symbol) باید بی‌دردسر ارتقا یابد و داده بماند."""
+
+    def test_old_db_gains_symbol_columns_and_wal(self):
+        import sqlite3
+        with tempfile.TemporaryDirectory() as tmp:
+            db = str(Path(tmp) / "old.db")
+            c = sqlite3.connect(db)
+            c.execute("CREATE TABLE equity ("
+                      "ts TEXT NOT NULL, equity REAL NOT NULL)")
+            c.execute("CREATE TABLE breaker_events ("
+                      "id INTEGER PRIMARY KEY AUTOINCREMENT, ts TEXT NOT NULL,"
+                      " kind TEXT NOT NULL, detail TEXT, streak INTEGER,"
+                      " size_multiplier REAL)")
+            c.execute("INSERT INTO equity VALUES ('2026-01-01T00:00:00', 3000.0)")
+            c.commit()
+            c.close()
+            j = Journal(db)   # مهاجرت خودکار
+            mode = j.conn.execute("PRAGMA journal_mode").fetchone()[0]
+            self.assertEqual(mode.lower(), "wal")   # دو پروسهٔ همزمان
+            j.record_equity(datetime.now(), 2990.0, symbol="XAGUSD")
+            rows = j.conn.execute(
+                "SELECT symbol, equity FROM equity ORDER BY ts").fetchall()
+            self.assertIsNone(rows[0]["symbol"])    # ردیف قدیمی دست‌نخورده
+            self.assertEqual(rows[1]["symbol"], "XAGUSD")
+            j.record_breaker_event(datetime.now(), "derate", "تست", 3, 0.5,
+                                   symbol="XAGUSD")
+            brk = j.conn.execute(
+                "SELECT symbol FROM breaker_events").fetchall()
+            self.assertEqual(brk[0]["symbol"], "XAGUSD")
 
 
 if __name__ == "__main__":
