@@ -47,6 +47,19 @@ def main() -> None:
     if eq.empty:
         print("هنوز داده‌ای ثبت نشده.")
         return
+    # ---- ضربان: ربات زنده است؟ (هر کندل M15 بسته‌شده یک ردیف equity می‌نویسد) ----
+    eq_ts = pd.to_datetime(eq["ts"])
+    last_ts = eq_ts.iloc[-1]
+    age_h = (pd.Timestamp.now() - last_ts).total_seconds() / 3600.0
+    last24 = int((eq_ts >= pd.Timestamp.now() - pd.Timedelta(hours=24)).sum())
+    print("── ضربان ──")
+    print(f"آخرین چرخهٔ ثبت‌شده: {last_ts:%m-%d %H:%M} ({age_h:.1f} ساعت پیش) | "
+          f"چرخه‌های ۲۴ساعت اخیر: {last24} | کل: {len(eq)}")
+    if age_h > 2.0:
+        print("⚠️ بیش از ۲ ساعت از آخرین چرخه گذشته — ربات احتمالاً خاموش است")
+        print("   (اگر آخر هفته است و بازار تعطیل، طبیعی است)")
+    else:
+        print("✅ ربات همین حالا فعال است")
     if not trades.empty:
         trades["closed_at"] = pd.to_datetime(trades["closed_at"])
         trades["opened_at"] = pd.to_datetime(trades["opened_at"])

@@ -53,13 +53,29 @@ class TestLiveReport(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             db = pathlib.Path(td) / "journal.db"
             js = Journal(str(db))
-            t0 = datetime(2026, 9, 10, 12, 0)
+            t0 = datetime.now() - timedelta(minutes=10)
             js.record_equity(t0, 3000.0)
-            js.record_equity(t0 + timedelta(minutes=20), 3001.5)
+            js.record_equity(t0 + timedelta(minutes=5), 3001.5)
             js.close()
             out = run_report(db)
             self.assertIn("معاملات بسته‌شده: 0", out)
             self.assertIn("equity آخرین", out)
+            self.assertIn("ضربان", out)
+            self.assertIn("فعال است", out)      # چرخه‌ی تازه → زنده
+
+    def test_stale_heartbeat_warns(self):
+        """آخرین چرخه قدیمی → هشدار «ربات احتمالاً خاموش»."""
+        with tempfile.TemporaryDirectory() as td:
+            db = pathlib.Path(td) / "journal.db"
+            js = Journal(str(db))
+            t0 = datetime.now() - timedelta(hours=6)
+            js.record_equity(t0, 3000.0)
+            js.record_equity(t0 + timedelta(minutes=15), 2999.0)
+            js.close()
+            out = run_report(db)
+            self.assertIn("ضربان", out)
+            self.assertIn("خاموش است", out)
+            self.assertNotIn("فعال است", out)
 
     def test_full_journal_renders(self):
         """معامله + بریکر + equity → همه بخش‌ها بدون خطا."""
