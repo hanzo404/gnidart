@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import os
 import pathlib
+import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Optional
@@ -60,6 +61,35 @@ def eet_dst_active(dt: datetime) -> bool:
 
 def server_to_utc(ts_server: pd.Timestamp, offset_minutes: int) -> pd.Timestamp:
     return ts_server - pd.Timedelta(minutes=offset_minutes)
+
+
+def validate_symbol_spec(profile, spec: dict) -> list:
+    """تطبیق مشخصات واقعی نماد (MT5) با پروفایل config — ممیزی خارجی ۳ (P0).
+
+    spec = دیکشنری از symbol_info (فقط ویندوز). خروجی: فهرست هشدار؛ خالی = سازگار.
+    """
+    def g(key):
+        return (spec.get(key) if isinstance(spec, dict)
+                else getattr(spec, key, None))
+
+    warns = []
+    cs = float(g("trade_contract_size") or 0)
+    if cs and abs(cs - profile.contract_size) > 0.01:
+        warns.append(f"contract_size: بروکر {cs:g} ≠ پروفایل "
+                     f"{profile.contract_size:g} — سایزینگ غلط می‌شود")
+    dg = g("digits")
+    if dg is not None and int(dg) != profile.digits:
+        warns.append(f"digits: بروکر {dg} ≠ پروفایل {profile.digits} (نمایش/تبدیل پوینت)")
+    vs = float(g("volume_step") or 0)
+    if vs and abs(vs - 0.01) > 1e-9:
+        warns.append(f"volume_step: بروکر {vs:g} — گرد کردن 0.01 ما نادرست است")
+    vmin = float(g("volume_min") or 0)
+    if vmin > 0.01:
+        warns.append(f"volume_min: بروکر {vmin:g} > حداقل فرضی 0.01")
+    vmax = float(g("volume_max") or 0)
+    if vmax and profile.max_lots > vmax:
+        warns.append(f"volume_max: بروکر {vmax:g} < سقف پروفایل {profile.max_lots}")
+    return warns
 
 
 @dataclass
@@ -197,6 +227,11 @@ class LiveRunner:
                 self.state["sleeve_base"] = balance   # اولین اجرای این آستین
             equity = (float(self.state["sleeve_base"])
                       + float(self.state.get("sleeve_pnl", 0.0)))
+            # گارد ضرر روزانه (ممیزی ۳): مبنای هر روزِ سرور ثبت/ریست می‌شود
+            today = str(now_server.date())
+            if self.state.get("risk_day") != today:
+                self.state["risk_day"] = today
+                self.state["day_start_equity"] = equity
             self.journal.record_equity(datetime.now(), equity,
                                        symbol=self.symbol)
             self.policy.on_bar_close(datetime.now(), equity)
@@ -311,6 +346,15 @@ class LiveRunner:
             if self.adapter.open_positions():
                 return "پوزیشن باز در ترمینال (سقف ۱)"
 
+        # گارد ضرر روزانهٔ همین آستین (ممیزی ۳ — P0): بالای ۳٪ افتِ روز
+        # (سه استاپِ عادی = ۱.۵٪؛ این گارد فقط در سناریوی گپ/اسلیپیج غیرعادی فعال می‌شود)
+        d0 = self.state.get("day_start_equity")
+        if d0 and d0 > 0:
+            day_dd = (d0 - equity) / d0
+            if day_dd >= self.cfg.risk.max_daily_loss:
+                return (f"⛔ توقف روزانهٔ این آستین: افت {day_dd:.1%} ≥ "
+                        f"{self.cfg.risk.max_daily_loss:.0%} — تا فردا ورود نیست")
+
         # سقف روزانه
         today = str(now_server.date())
         if self.state.get("last_entry_date") == today and \
@@ -321,12 +365,17 @@ class LiveRunner:
         if not session_open(pd.Series([entry_utc]))[0]:
             return f"خارج از سشن ورود ({entry_utc:%H:%M} UTC)"
 
-        # اسپرد لحظه‌ای
+        # اسپرد لحظه‌ای + گارد دادهٔ کهنه (ممیزی ۳ — P0: فید فریز = ورود ممنوع)
         try:
             q = self.provider.live_quote()
             spread_usd = float(q["spread_points"]) * float(q["point"])
         except Exception as e:  # noqa: BLE001
             return f"تیک ناموجود ({e})"
+        tick_epoch = q.get("tick_epoch") if isinstance(q, dict) else None
+        if tick_epoch:
+            age = time.time() - float(tick_epoch)
+            if age > 120:
+                return f"⛔ دادهٔ کهنه ({age:.0f} ثانیه از آخرین تیک) — ورود ممنوع"
         if spread_usd > self.profile.max_spread_usd:
             return (f"اسپرد ${spread_usd:.3f} > گیت "
                     f"${self.profile.max_spread_usd} ({self.symbol})")

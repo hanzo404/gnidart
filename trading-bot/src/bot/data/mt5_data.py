@@ -124,4 +124,21 @@ class MT5DataProvider:
             "ask": info.ask,
             "point": info.point,
             "spread_points": (info.ask - info.bid) / info.point,
+            "tick_epoch": float(getattr(info, "time", 0) or 0),
+        }
+
+    def symbol_spec(self) -> dict:
+        """مشخصات واقعی نماد از بروکر — برای اعتبارسنجی پروفایل (ممیزی ۳)."""
+        if not self._connected:
+            self.connect()
+        info = mt5.symbol_info(self.symbol)
+        if info is None:
+            return {}
+        return {
+            "trade_contract_size": getattr(info, "trade_contract_size", None),
+            "digits": getattr(info, "digits", None),
+            "volume_min": getattr(info, "volume_min", None),
+            "volume_step": getattr(info, "volume_step", None),
+            "volume_max": getattr(info, "volume_max", None),
+            "point": getattr(info, "point", None),
         }

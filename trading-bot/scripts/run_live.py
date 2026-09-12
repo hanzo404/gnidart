@@ -21,7 +21,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 
 from bot.config import BotConfig
 from bot.journal.store import Journal
-from bot.live.runner import LiveRunner
+from bot.live.runner import LiveRunner, validate_symbol_spec
 
 
 def main() -> None:
@@ -68,6 +68,19 @@ def main() -> None:
         runner = LiveRunner(provider, adapter, journal, cfg,
                             state_path=args.state, symbol=symbol,
                             dry_run=args.dry_run)
+
+        # ممیزی ۳ (P0): تطبیق مشخصات واقعی نماد با پروفایل config
+        try:
+            spec = provider.symbol_spec()
+            warns = validate_symbol_spec(cfg.profile_for(symbol), spec)
+            if warns:
+                print("⚠️ اختلاف مشخصات نماد با پروفایل — قبل از ادامه بررسی کن:")
+                for w in warns:
+                    print(f"   • {w}")
+            elif spec:
+                print("✅ مشخصات نماد با پروفایل سازگار است (contract/digits/volume)")
+        except Exception as e:  # noqa: BLE001 — اعتبارسنجی هرگز ربات را نکشد
+            print(f"(اعتبارسنجی مشخصات نماد انجام نشد: {e})")
 
         if args.ack:
             runner.acknowledge()

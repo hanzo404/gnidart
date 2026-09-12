@@ -4,6 +4,7 @@
 روی MT5 واقعی هم درست است — چون runner هیچ چیزی از MT5 نمی‌داند.
 """
 import tempfile
+import time
 import unittest
 from datetime import datetime
 from pathlib import Path
@@ -453,6 +454,50 @@ class TestOncePerBar(unittest.TestCase):
             msg = r.on_cycle()
             self.assertIn("کندل جدیدی بسته نشده", msg)
             self.assertIsNone(r.paper)                 # هنوز بی‌پوزیشن ✓
+
+
+class TestAudit3Guards(unittest.TestCase):
+    """سه گارد ممیزی خارجی ۳ (۲۰۲۶-۰۹-۱۲): ضرر روزانهٔ آستین، تیک کهنه،
+    اعتبارسنجی مشخصات نماد."""
+
+    def test_daily_loss_blocks_entry(self):
+        """افت روزانهٔ همین آستین ≥ ۳٪ → ورود جدید بلاک تا روز بعد."""
+        with tempfile.TemporaryDirectory() as tmp:
+            r, prov, ad, jr = make_runner(tmp, dry_run=True)
+            self.assertIn("ورود", r.on_cycle())     # کندل ۱: ورود عادی
+            r.paper = None                          # پوزیشنی باز نیست
+            r.state["sleeve_pnl"] = -100.0          # روز بد: ۳.۳٪ افت
+            prov.bars = uptrend_bars(start="2026-06-01 13:00")  # کندل جدید
+            msg = r.on_cycle()
+            self.assertIn("توقف روزانه", msg)
+            self.assertIsNone(r.paper)
+
+    def test_stale_tick_blocks_entry(self):
+        """فید فریز (تیک > ۲ دقیقه قدیمی) → ورود ممنوع."""
+        with tempfile.TemporaryDirectory() as tmp:
+            r, prov, ad, jr = make_runner(tmp)
+            q = prov.live_quote()
+            prov.live_quote = lambda: {**q, "tick_epoch": time.time() - 300}
+            msg = r.on_cycle()
+            self.assertIn("دادهٔ کهنه", msg)
+            self.assertEqual(len(ad.orders), 0)
+
+    def test_fresh_tick_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            r, prov, ad, jr = make_runner(tmp)
+            q = prov.live_quote()
+            prov.live_quote = lambda: {**q, "tick_epoch": time.time() - 5}
+            self.assertIn("ورود", r.on_cycle())
+
+    def test_symbol_spec_validation(self):
+        from bot.live.runner import validate_symbol_spec
+        p = BotConfig().profile_for("XAGUSD")
+        ok = {"trade_contract_size": 5000.0, "digits": 3, "volume_min": 0.01,
+              "volume_step": 0.01, "volume_max": 100.0, "point": 0.001}
+        self.assertEqual(validate_symbol_spec(p, ok), [])
+        bad = dict(ok, trade_contract_size=1000.0, digits=2, volume_step=0.1)
+        w = validate_symbol_spec(p, bad)
+        self.assertEqual(len(w), 3)   # contract + digits + step
 
 
 if __name__ == "__main__":
