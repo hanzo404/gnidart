@@ -151,9 +151,13 @@ class Backtester:
         self._h = self.bars["high"].to_numpy(float)
         self._l = self.bars["low"].to_numpy(float)
         self._c = self.bars["close"].to_numpy(float)
+        has_spread = "spread_usd" in self.bars.columns
+        if not has_spread:
+            # ممیزی خارجی: اسپردِ صفر = خوش‌بینی خاموش؛ باید بلند گفته شود
+            print("⚠️ بک‌تست: ستون spread_usd نیست → با اسپرد صفر (خوش‌بینانه) "
+                  "اجرا می‌شود؛ برای نتیجهٔ واقع‌بینانه اسپرد را تزریق کن")
         self._sp = (self.bars["spread_usd"].to_numpy(float)
-                    if "spread_usd" in self.bars.columns
-                    else np.zeros(len(self.bars)))
+                    if has_spread else np.zeros(len(self.bars)))
         t = self.bars["time"].to_numpy()
         n = len(self.bars)
         self.strategy.prepare(self.bars)

@@ -52,6 +52,11 @@ def load_mt5(path: str | Path, point: float = 0.01) -> pd.DataFrame:
     df = pd.read_csv(path, parse_dates=["time"])
     df = df.rename(columns={"tick_volume": "volume"})
     df["volume"] = df["volume"].astype(float)
+    if point == 0.01 and len(df) and float(df["close"].median()) < 500:
+        # ممیزی خارجی: پیش‌فرضِ طلایی روی نماد ارزان‌تر = اسپرد ۱۰ برابری غلط
+        print(f"⚠️ load_mt5 با point=0.01 روی میانهٔ قیمت "
+              f"{float(df['close'].median()):.2f} — اگر نماد XAGUSD است "
+              f"point=0.001 بده")
     df["spread_usd"] = df["spread"] * point
     return df[COLS + ["spread_usd"]].reset_index(drop=True)
 

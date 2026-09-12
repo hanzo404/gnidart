@@ -14,7 +14,7 @@ import pandas as pd
 from bot.config import BotConfig
 from bot.execution.base import Fill, Order
 from bot.journal.store import Journal
-from bot.live.runner import LiveRunner, us_dst_active
+from bot.live.runner import LiveRunner, eet_dst_active
 
 
 def uptrend_bars(n=600, seed=7, gap_last=True, start="2026-06-01 12:00",
@@ -108,12 +108,51 @@ def make_runner(tmp, bars=None, h4=None, dry_run=False, point=0.01,
     return runner, provider, adapter, journal
 
 
-class TestUsDst(unittest.TestCase):
-    def test_boundaries(self):
-        self.assertTrue(us_dst_active(datetime(2026, 7, 1)))
-        self.assertFalse(us_dst_active(datetime(2026, 1, 1)))
-        self.assertTrue(us_dst_active(datetime(2026, 3, 10)))   # دومین یکشنبه مارس = ۸/۳
-        self.assertFalse(us_dst_active(datetime(2026, 11, 2)))  # بعد از ۱ نوامبر
+class TestEetDst(unittest.TestCase):
+    """قاعدهٔ اروپایی (آخرین یکشنبه مارس ← آخرین یکشنبه اکتبر) — باگ ممیزی:
+    قبلاً قاعدهٔ آمریکایی بود و ~۳-۵ هفته در سال آفست سرور را ۱ ساعت غلط می‌داد."""
+    def test_boundaries_2026(self):
+        # ۲۰۲۶: شروع ۲۹ مارس (آخرین یکشنبه)، پایان ۲۵ اکتبر (آخرین یکشنبه)
+        self.assertTrue(eet_dst_active(datetime(2026, 7, 1)))
+        self.assertFalse(eet_dst_active(datetime(2026, 1, 1)))
+        self.assertFalse(eet_dst_active(datetime(2026, 3, 28)))  # روز قبل از گذار
+        self.assertTrue(eet_dst_active(datetime(2026, 3, 29)))   # روز گذار
+        self.assertTrue(eet_dst_active(datetime(2026, 10, 24)))  # آخرین شنبه قبل از گذار
+        self.assertFalse(eet_dst_active(datetime(2026, 10, 25))) # روز گذار (۰۱:۰۰ UTC → عمده‌ی روز زمستان)
+        self.assertFalse(eet_dst_active(datetime(2026, 10, 26))) # بعد از گذار
+
+    def test_not_us_rule(self):
+        # ۱۰ مارس ۲۰۲۶ = دومین یکشنبهٔ مارس (قاعدهٔ آمریکایی فعال، اروپایی نه)
+        self.assertFalse(eet_dst_active(datetime(2026, 3, 10)))
+        # ۲ نوامبر ۲۰۲۶ = بعد از ۱ نوامبر (آمریکایی غیرفعال، اروپایی از ۲۵ اکتبر غیرفعال)
+        self.assertFalse(eet_dst_active(datetime(2026, 11, 2)))
+
+
+class TestAtomicState(unittest.TestCase):
+    """ذخیرهٔ state باید اتمیک باشد (tmp+fsync+rename) — کرش وسط نوشتن
+    نباید JSON خراب بسازد که halt/بریکر/سرمایهٔ آستین را فراموش کند."""
+    def test_save_leaves_valid_json_and_no_tmp(self):
+        import json as _json
+        with tempfile.TemporaryDirectory() as tmp:
+            r, _, _, _ = make_runner(tmp, dry_run=True)
+            r.on_cycle()
+            r._save_state()
+            data = _json.loads(
+                (Path(tmp) / "state.json").read_text(encoding="utf-8"))
+            self.assertIn("breaker", data)
+            self.assertFalse((Path(tmp) / "state.json.tmp").exists())
+
+    def test_state_survives_reload_after_corrupt_free(self):
+        import json as _json
+        with tempfile.TemporaryDirectory() as tmp:
+            r, _, _, _ = make_runner(tmp, dry_run=True)
+            r.on_cycle()
+            (Path(tmp) / "state.json").write_text("{ناقص", encoding="utf-8")
+            # ذخیرهٔ بعدی باید فایل خراب را تمیز جایگزین کند (os.replace)
+            r._save_state()
+            data = _json.loads(
+                (Path(tmp) / "state.json").read_text(encoding="utf-8"))
+            self.assertIn("breaker", data)
 
 
 class TestEntry(unittest.TestCase):

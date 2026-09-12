@@ -17,9 +17,10 @@
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 import pandas as pd
@@ -37,16 +38,24 @@ from bot.risk.circuit_breaker import CircuitBreaker
 
 
 # ------------------------------------------------------------------ #
-def us_dst_active(dt: datetime) -> bool:
-    """قاعدهٔ آمریکایی: دومین یکشنبهٔ مارس ← اولین یکشنبهٔ نوامبر."""
-    def nth_sunday(year, month, n):
-        d = datetime(year, month, 1)
-        first_sun = 1 + (6 - d.weekday()) % 7     # یکشنبه = 6
-        return first_sun + 7 * (n - 1)
+def eet_dst_active(dt: datetime) -> bool:
+    """قاعدهٔ اروپایی (سرور MetaQuotes = EET/EEST): آخرین یکشنبهٔ مارس
+    ← آخرین یکشنبهٔ اکتبر.
+
+    باگ فاز ۵ (گزارش ممیزی خارجی، ۲۰۲۶-۰۹-۱۲): قبلاً قاعدهٔ «آمریکایی»
+    (دومین یکشنبهٔ مارس ← اولین یکشنبهٔ نوامبر) پیاده بود؛ در ~۳-۵ هفتهٔ از
+    سال که دو قاعده هم‌زمان نیستند، آفست سرور ۱ ساعت غلط → گیت سشن جابه‌جا.
+    دقت: گذار ساعت ۰۱:۰۰ UTC است؛ ما در دقت روز می‌مانیم (۱ ساعت خطا فقط
+    در دو روزِ گذار در سال).
+    """
+    import calendar
+
+    def last_sunday(year: int, month: int) -> datetime:
+        last = datetime(year, month, calendar.monthrange(year, month)[1])
+        return last - timedelta(days=(last.weekday() - 6) % 7)  # یکشنبه=۶
+
     y = dt.year
-    start = datetime(y, 3, nth_sunday(y, 3, 2))
-    end = datetime(y, 11, nth_sunday(y, 11, 1))
-    return start <= dt < end
+    return last_sunday(y, 3) <= dt < last_sunday(y, 10)
 
 
 def server_to_utc(ts_server: pd.Timestamp, offset_minutes: int) -> pd.Timestamp:
@@ -116,9 +125,15 @@ class LiveRunner:
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
         self.state["breaker"] = self.breaker.state()
         self.state["paper"] = (self.paper.__dict__ if self.paper else None)
-        self.state_path.write_text(
-            json.dumps(self.state, ensure_ascii=False, indent=1),
-            encoding="utf-8")
+        # ذخیرهٔ اتمیک (گزارش ممیزی خارجی): بنویس در tmp → fsync → rename.
+        # قبلاً write_text مستقیم بود؛ کرشِ وسط نوشتن = JSON خراب = فراموشی
+        # halt/بریکر/سرمایهٔ آستین — خطرناک‌ترین حالتِ از دست رفتن state.
+        tmp = self.state_path.with_suffix(self.state_path.suffix + ".tmp")
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(self.state, f, ensure_ascii=False, indent=1)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, self.state_path)
 
     def _restore_breaker(self) -> None:
         b = self.state.get("breaker") or {}
@@ -146,7 +161,7 @@ class LiveRunner:
     def _offset_now(self, ts_server: pd.Timestamp) -> int:
         if self.utc_offset is not None:
             return self.utc_offset
-        return 180 if us_dst_active(datetime.now()) else 120
+        return 180 if eet_dst_active(datetime.now(timezone.utc)) else 120
 
     # ------------------------------------------------------------------ #
     def on_cycle(self) -> str:
