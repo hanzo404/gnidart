@@ -6,7 +6,7 @@
 import tempfile
 import time
 import unittest
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -498,6 +498,31 @@ class TestAudit3Guards(unittest.TestCase):
         bad = dict(ok, trade_contract_size=1000.0, digits=2, volume_step=0.1)
         w = validate_symbol_spec(p, bad)
         self.assertEqual(len(w), 3)   # contract + digits + step
+
+
+class TestDSTAwareInput(unittest.TestCase):
+    """رگرسیون v0.5.7 — مسیر تولیدِ _offset_now با datetime آaware.
+
+    کشف در اولین dry-run روی VPS (۲۰۲۶-۰۹-۱۵): eet_dst_active با ورودی
+    aware (مثل datetime.now(timezone.utc)) روی مرزهای نایو TypeError می‌داد
+    → هر چرخهٔ لایو می‌ترکید. تست‌های قبلی فقط ورودی نایو می‌دادند.
+    """
+
+    def test_aware_now_does_not_raise(self):
+        # عینِ عبارت داخل _offset_now — قبل از فیکس: TypeError
+        off = 180 if eet_dst_active(datetime.now(timezone.utc)) else 120
+        self.assertIn(off, (120, 180))
+
+    def test_aware_input_semantics(self):
+        # ۱۵ سپتامبر ۲۰۲۶ → بین آخرین یکشنبهٔ مارس و اکتبر → EEST (+3)
+        self.assertTrue(eet_dst_active(datetime(2026, 9, 15, tzinfo=timezone.utc)))
+        # ۱۵ ژانویه → خارج از بازه → EET (+2)
+        self.assertFalse(eet_dst_active(datetime(2026, 1, 15, tzinfo=timezone.utc)))
+
+    def test_naive_input_unchanged(self):
+        # ورودی نایو (مسیر تست‌های قدیمی) نباید تغییر رفتار کند
+        self.assertTrue(eet_dst_active(datetime(2026, 9, 15)))
+        self.assertFalse(eet_dst_active(datetime(2026, 11, 15)))
 
 
 if __name__ == "__main__":

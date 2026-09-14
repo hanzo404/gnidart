@@ -55,6 +55,13 @@ def eet_dst_active(dt: datetime) -> bool:
         last = datetime(year, month, calendar.monthrange(year, month)[1])
         return last - timedelta(days=(last.weekday() - 6) % 7)  # یکشنبه=۶
 
+    # رگرسیون v0.5.7 (کشف: اولین dry-run لایو روی VPS، ۲۰۲۶-۰۹-۱۵): مسیر
+    # تولید با datetime.now(timezone.utc) «آگاه» صدا زده می‌شود ولی مرزهای
+    # last_sunday نایویند → مقایسهٔ naive/aware = TypeError در «هر» چرخهٔ
+    # لایو (ربات هیچ‌وقت به گیت سشن نمی‌رسید). تست‌های سندباکس نایو بودند و
+    # این مسیر را نمی‌دیدند. نرمال‌سازی به UTC نایو — با دقت روزِ این تابع کافی است.
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(timezone.utc).replace(tzinfo=None)
     y = dt.year
     return last_sunday(y, 3) <= dt < last_sunday(y, 10)
 
