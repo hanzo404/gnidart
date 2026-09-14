@@ -14,7 +14,14 @@ from __future__ import annotations
 
 import json
 import pathlib
+import ssl
 import urllib.request
+
+try:  # هات‌فیکس SSL ویندوز (۲۰۲۶-۰۹-۱۵): مخزن گواهیِ پایتون روی
+    import certifi  # سرور ۲۰۲۲ می‌تواند ریشهٔ تلگرام را نداشته باشد؛
+    SSL_CTX = ssl.create_default_context(cafile=certifi.where())  # curl
+except ImportError:  # به همین دلیل کار می‌کرد. certifi = همان باندل Mozilla.
+    SSL_CTX = None  # نبود certifi → رفتار قبلی (مخزن سیستم)
 
 # سقف پیام تلگرام ۴۰۹۶ کاراکتر است؛ حاشیهٔ اطمینان می‌گذاریم
 MAX_LEN = 4000
@@ -59,7 +66,8 @@ class TelegramNotifier:
                 data=data,
                 headers={"Content-Type": "application/json"},
             )
-            with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
+            with urllib.request.urlopen(req, timeout=_TIMEOUT,
+                                        context=SSL_CTX) as resp:
                 return resp.status == 200
         except Exception as e:  # noqa: BLE001 — پیام‌رسان هرگز ربات را نکشد
             if not self._warned:

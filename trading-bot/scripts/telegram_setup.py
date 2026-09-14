@@ -18,12 +18,16 @@ import urllib.request
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 
-from bot.live.telegram_notify import CONFIG_PATH, TelegramNotifier  # noqa: E402
+from bot.live.telegram_notify import (  # noqa: E402
+    CONFIG_PATH, SSL_CTX, TelegramNotifier,
+)
 
 
 def api(token: str, method: str) -> dict:
     url = f"https://api.telegram.org/bot{token}/{method}"
-    with urllib.request.urlopen(url, timeout=10) as resp:
+    # SSL_CTX = باندل certifi (Mozilla) — روی Server 2022 مخزن سیستم
+    # می‌تواند ناقص باشد و getUpdates با CERTIFICATE_VERIFY_FAILED بمیرد.
+    with urllib.request.urlopen(url, timeout=10, context=SSL_CTX) as resp:
         return json.loads(resp.read().decode("utf-8"))
 
 
