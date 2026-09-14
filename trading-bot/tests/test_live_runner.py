@@ -15,7 +15,7 @@ import pandas as pd
 from bot.config import BotConfig
 from bot.execution.base import Fill, Order
 from bot.journal.store import Journal
-from bot.live.runner import LiveRunner, eet_dst_active
+from bot.live.runner import LiveRunner, PaperPosition, eet_dst_active
 
 
 def uptrend_bars(n=600, seed=7, gap_last=True, start="2026-06-01 12:00",
@@ -523,6 +523,24 @@ class TestDSTAwareInput(unittest.TestCase):
         # ورودی نایو (مسیر تست‌های قدیمی) نباید تغییر رفتار کند
         self.assertTrue(eet_dst_active(datetime(2026, 9, 15)))
         self.assertFalse(eet_dst_active(datetime(2026, 11, 15)))
+
+
+class TestCloseNotification(unittest.TestCase):
+    """فاز ops: بسته‌شدن معامله باید از طریق print_fn اعلام شود
+    (این خط از طریق say در run_live به تلگرام هم می‌رسد)."""
+
+    def test_close_prints_exit_line(self):
+        lines = []
+        with tempfile.TemporaryDirectory() as tmp:
+            r, prov, ad, jr = make_runner(tmp, dry_run=True,
+                                          print_fn=lines.append)
+            r.paper = PaperPosition(id="p", direction=1, units=0.01,
+                                    entry=2000.0, stop=1990.0,
+                                    target=2025.0, risk_usd=10.0)
+            r.state["trade_id"] = None
+            r._close_paper(2025.0, "target")
+            self.assertTrue(any("خروج" in ln and "2.50R" in ln
+                                for ln in lines), lines)
 
 
 if __name__ == "__main__":

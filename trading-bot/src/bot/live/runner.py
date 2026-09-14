@@ -299,6 +299,12 @@ class LiveRunner:
 
     def _on_trade_closed(self, profit: float, r: float,
                          ts, exit_price: float, reason: str = "broker") -> None:
+        # فاز ops: خط خروج — از طریق print_fn به کنسول و (اگر فعال باشد)
+        # تلگرام می‌رسد. تنها پیام‌رسانیِ «نتیجهٔ» معامله است.
+        d = self.profile.digits
+        self._print(f"{'🧪' if self.dry_run else '💰'} خروج {self.symbol}: "
+                    f"{profit:+.2f}$ ({r:+.2f}R) @ {exit_price:.{d}f} "
+                    f"[{reason}]")
         tid = self.state.pop("trade_id", None)
         self.state.pop("ticket", None)
         self.state.pop("risk_usd", None)

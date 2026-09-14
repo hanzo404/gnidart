@@ -22,6 +22,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 from bot.config import BotConfig
 from bot.journal.store import Journal
 from bot.live.runner import LiveRunner, validate_symbol_spec
+from bot.live.telegram_notify import TelegramNotifier
 
 
 def main() -> None:
@@ -45,6 +46,13 @@ def main() -> None:
         args.state = ("data/live_state.json" if symbol == "XAUUSD"
                       else f"data/live_state_{symbol.lower()}.json")
 
+    # فاز ops (۲۰۲۶-۰۹-۱۵): اطلاع‌رسانی تلگرام — اختیاری.
+    # نبود config/telegram.local.yaml = خاموش (بکاپ خونه/تست‌ها دست‌نخورده).
+    notify = TelegramNotifier.from_config()
+    print("📱 اطلاع‌رسانی تلگرام: "
+          + ("فعال" if notify.enabled else "خاموش (تنظیم نشده)"))
+    announced = False
+
     # ---- وایرینگ (فقط این‌جا import های MT5 انجام می‌شوند) ----
     from bot.data.mt5_data import MT5DataProvider
     from bot.execution.mt5_adapter import MT5ExecutionAdapter
@@ -65,9 +73,22 @@ def main() -> None:
 
         adapter = MT5ExecutionAdapter(symbol, magic=cfg.live.magic)
         journal = Journal(cfg.journal.path)
+
+        # فاز ops: print_fn رانر = کنسول + تلگرام. ضد-اسپم: پیامِ «عیناً
+        # تکراری» تا ۵۵ دقیقه دوباره ارسال نمی‌شود (پیام HALTِ هر-کندلی).
+        _last_sent = {"msg": None, "t": 0.0}
+
+        def say(msg: str) -> None:
+            print(msg)
+            now = time.time()
+            if msg == _last_sent["msg"] and now - _last_sent["t"] < 3300:
+                return
+            _last_sent.update(msg=msg, t=now)
+            notify.send(msg)
+
         runner = LiveRunner(provider, adapter, journal, cfg,
                             state_path=args.state, symbol=symbol,
-                            dry_run=args.dry_run)
+                            dry_run=args.dry_run, print_fn=say)
 
         # ممیزی ۳ (P0): تطبیق مشخصات واقعی نماد با پروفایل config
         try:
@@ -97,23 +118,41 @@ def main() -> None:
               f"ریسک: {cfg.risk.risk_per_trade:.1%}/معامله × نردبان بریکر")
         print(f"   ژورنال: {cfg.journal.path} (مشترک، ستون symbol) | وضعیت: {args.state}")
         print("   Ctrl+C = توقف تمیز (استاپ‌ها سروری‌اند)\n")
+        announced = True
+        notify.send(f"🤖 آستین {symbol} شروع شد | {mode} | اکانت {acc['login']} "
+                    f"| موجودی ${acc['balance']:,.0f}")
 
         poll = cfg.live.poll_seconds
+        # فاز ops: خطا حداکثر هر ۱۵ دقیقه، توقف‌ها حداکثر هر ۶ ساعت،
+        # ضربانِ «زنده‌ام» هر ۲۴ ساعت — باتِ بی‌نظارت بدون اسپم.
+        err_last_sent, stop_last_sent, beat_last = 0.0, 0.0, time.time()
         while True:
             try:
                 msg = runner.on_cycle()
                 stamp = datetime.now().strftime("%H:%M:%S")
                 print(f"[{stamp}] {msg}")
+                if "توقف" in msg and time.time() - stop_last_sent >= 6 * 3600:
+                    stop_last_sent = time.time()
+                    notify.send(f"⛔ {symbol}: {msg}")
             except KeyboardInterrupt:
                 raise
             except Exception as e:  # noqa: BLE001 — یک چرخهٔ خراب کل ربات را نکشد
                 print(f"[!] خطای چرخه (ادامه می‌دهیم): {e}")
+                now = time.time()
+                if now - err_last_sent >= 900:
+                    err_last_sent = now
+                    notify.send(f"⚠️ خطای چرخهٔ {symbol}: {e}")
+            if time.time() - beat_last >= 24 * 3600:
+                beat_last = time.time()
+                notify.send(f"💗 ضربان روزانهٔ {symbol}: زنده و در چرخه‌ام")
             if args.once:
                 break
             time.sleep(poll)
     finally:
         provider.close()
         print("\n👋 اتصال بسته شد.")
+        if announced:
+            notify.send(f"👋 رانر {symbol} متوقف شد")
 
 
 if __name__ == "__main__":

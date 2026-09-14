@@ -13,3 +13,6 @@ venv/
 .DS_Store
 .idea/
 .vscode/
+
+# فاز ops (2026-09-15): توکن تلگرام راز است — هرگز کامیت نشود
+config/telegram.local.yaml
