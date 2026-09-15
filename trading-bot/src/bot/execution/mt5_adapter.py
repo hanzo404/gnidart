@@ -65,6 +65,34 @@ class MT5ExecutionAdapter(ExecutionAdapter):
             pass
         return mt5.ORDER_FILLING_IOC
 
+    def _validate_stops(self, price: float, order: Order) -> None:
+        """ممیزی ۴ (P0-2): فاصلهٔ SL/TP از قیمت باید ≥ trade_stops_level باشد.
+
+        بدون این چک، استاپِ نزدیک → retcode 10016 (Invalid stops) موقع
+        سفارش می‌ماند و با SL/TP اتمیک یعنی سفارش کلاً نمی‌رود. اینجا
+        *قبل از* ارسال و با پیام شفاف رد می‌کنیم.
+        """
+        try:
+            info = mt5.symbol_info(self.symbol)
+        except Exception:  # noqa: BLE001 — فید نماد موقتاً قطع است
+            info = None
+        if info is None:
+            return  # بدون اطلاعات نماد تصمیم نمی‌گیریم — order_check هم در راه است
+        stops = int(getattr(info, "trade_stops_level", 0) or 0)
+        if stops <= 0:
+            return  # خیلی از بروکرها محدودیتی ندارند
+        point = float(getattr(info, "point", 0.01) or 0.01)
+        min_dist = stops * point
+        for name, lvl in (("SL", order.stop), ("TP", order.target)):
+            if lvl is None:
+                continue
+            dist = abs(float(price) - float(lvl))
+            if dist < min_dist:
+                raise RuntimeError(
+                    f"فاصلهٔ {name} تا قیمت ({dist:.5f}) کمتر از حد مجاز "
+                    f"بروکر است ({min_dist:.5f} = {stops} پوینت stops_level) "
+                    "— سفارش ارسال نشد (ممیزی ۴ P0-2)")
+
     def place_order(self, order: Order) -> Fill:
         if self.require_demo:
             self._check_demo()
@@ -79,6 +107,8 @@ class MT5ExecutionAdapter(ExecutionAdapter):
                 raise RuntimeError(
                     f"تیک {self.symbol} ناموجود — Market Watch را چک کن")
             price = tick.ask if order.direction > 0 else tick.bid
+            # ممیزی ۴ (P0-2): گیت stops_level قبل از ساخت درخواست
+            self._validate_stops(price, order)
             req = {
                 "action": mt5.TRADE_ACTION_DEAL,
                 "symbol": self.symbol,
@@ -99,6 +129,13 @@ class MT5ExecutionAdapter(ExecutionAdapter):
             }
             # MT5 مقادیر None در sl/tp را نمی‌پذیرد — کلید را حذف کن
             req = {k: v for k, v in req.items() if v is not None}
+            # ممیزی ۴ (P0-2): پیش‌پرواز — اعتبارسنجی سرور بدون ارسال واقعی
+            # (مارجین، حجم، استاپ، بسته‌بودن بازار و…). retcode=0 یعنی OK.
+            chk = mt5.order_check(req)
+            if chk is not None and int(getattr(chk, "retcode", 0)) != 0:
+                raise RuntimeError(
+                    f"order_check رد کرد (retcode={getattr(chk, 'retcode')}): "
+                    f"{getattr(chk, 'comment', '')} — سفارش ارسال نشد")
             result = mt5.order_send(req)
             if result is None:
                 raise RuntimeError(

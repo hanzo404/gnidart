@@ -131,7 +131,7 @@ def main() -> None:
 
     ds.to_csv(save / "phase6_candidates.csv", index=False)
     res.per_window.to_csv(save / "phase6_wfo_windows.csv", index=False)
-    print(f"\n💾 marketdata/phase6_candidates.csv + phase6_wfo_windows.csv")
+    print("\n💾 marketdata/phase6_candidates.csv + phase6_wfo_windows.csv")
     print("\nقانون قضاوت: متا فقط وقتی می‌گذرد که PF_OOS(متا) ≥ 1.4 و "
           "فرکانس ≥ ۱۵/ماه — وگرنه گیت کامل می‌ماند.")
 

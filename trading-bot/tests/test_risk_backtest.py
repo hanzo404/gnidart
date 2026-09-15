@@ -1,7 +1,6 @@
 """تست‌های فاز ۳ — اتصال بریکر و سایزینگ %-ریسک به موتور بک‌تست."""
 import unittest
 
-import numpy as np
 import pandas as pd
 
 from bot.backtest.engine import BacktestConfig, Backtester, Order

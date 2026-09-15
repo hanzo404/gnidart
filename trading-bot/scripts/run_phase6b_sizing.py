@@ -25,7 +25,7 @@ import pandas as pd
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 
-from bot.analysis.meta import (FEATURES, MetaWFOConfig, agg, build_dataset)
+from bot.analysis.meta import (MetaWFOConfig, agg, build_dataset)
 from bot.analysis.meta_sizing import (agg_weighted, run_meta_sizing_wfo)
 from bot.backtest.engine import BacktestConfig, Backtester
 from bot.backtest.gate import GatedStrategy

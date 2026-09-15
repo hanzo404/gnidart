@@ -102,7 +102,7 @@ def main() -> None:
                          "exp_r": round(m["expectancy_r"], 3)})
 
     pd.DataFrame(rows).to_csv(save / "timeframe_cost_matrix.csv", index=False)
-    print(f"\n💾 marketdata/timeframe_cost_matrix.csv")
+    print("\n💾 marketdata/timeframe_cost_matrix.csv")
 
 
 if __name__ == "__main__":

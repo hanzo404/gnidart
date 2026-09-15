@@ -118,9 +118,9 @@ class DukascopyDownloader:
                 if r.status_code not in _RETRYABLE_STATUS:
                     r.raise_for_status()
                     return r.content
-                last_err = f"HTTP {r.status_code} (rate-limit/موقتی)"
+                last_err = f"HTTP {r.status_code} (rate-limit/موقتی)"  # noqa: F841 — برای دیباگ دستی نگه داشته می‌شود
             except requests.RequestException as e:
-                last_err = e
+                last_err = e  # noqa: F841 — همان بالا
             time.sleep(min(self.backoff_max, 2.0 * (2 ** attempt)))
         self.failed_days.add(day)
         return None

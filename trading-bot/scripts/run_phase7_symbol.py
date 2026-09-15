@@ -114,7 +114,7 @@ def main() -> None:
     # ---------- ۲) مقیاس هزینه‌ها (از-پیش-ثبت‌شده: نسبت ATR) ----------
     k = atr14_median(f15) / atr14_median(g15)
     sl_pad, slip = 0.50 * k, 0.05 * k
-    print(f"\n═══ ۲) مقیاس هزینه‌ها ═══")
+    print("\n═══ ۲) مقیاس هزینه‌ها ═══")
     print(f"  میانه ATR14: {args.instrument} {pfmt(atr14_median(f15))} | "
           f"طلا {atr14_median(g15):.2f} → k = {k:.5f}")
     print(f"  sl_pad = 0.50×k = {pfmt(sl_pad)} | slippage = 0.05×k = {pfmt(slip)}")
@@ -126,7 +126,7 @@ def main() -> None:
     sess = np.asarray(session_open(f15["time"]), dtype=bool)
     from bot.regime.engine import NAMES
     dist = pd.Series(reg).map(NAMES).value_counts(normalize=True)
-    print(f"\n═══ ۳) رژیم (همان آستانه‌های طلا) ═══")
+    print("\n═══ ۳) رژیم (همان آستانه‌های طلا) ═══")
     print("  " + " | ".join(f"{i}: {v:.0%}" for i, v in dist.items()))
 
     # ---------- ۴) نگاه اول ----------
@@ -139,7 +139,7 @@ def main() -> None:
             f"فقط فروش + گیت کامل ({tag})", months, args.contract)
 
     # سال‌به‌سالِ خریدِ گیت‌شده (تمرکز سود را ببینیم)
-    print(f"\n═══ ۵) خریدِ گیت‌شده — سال‌به‌سال (اسپرد پایه) ═══")
+    print("\n═══ ۵) خریدِ گیت‌شده — سال‌به‌سال (اسپرد پایه) ═══")
     res = run(f15, f4, reg, sess, +1, sl_pad, slip, args.spread_base,
               "خرید گیت‌شده (مرجع بخش ۵)", months, args.contract)
     t = res.trades.assign(year=pd.to_datetime(res.trades["entry_time"]).dt.year)
@@ -150,7 +150,7 @@ def main() -> None:
     years_pos = int((t.groupby("year")["pnl"].sum() > 0).sum())
     ok = (mm["profit_factor"] >= 1.15 and mm["n_trades"] / months >= 3
           and years_pos >= 2)
-    print(f"\n═══ ۶) حکم میلهٔ نگاه اول ═══")
+    print("\n═══ ۶) حکم میلهٔ نگاه اول ═══")
     print(f"  PF {mm['profit_factor']:.2f} (≥1.15؟) | "
           f"{mm['n_trades']/months:.1f}/ماه (≥3؟) | "
           f"سال‌های مثبت {years_pos}/۳ (≥2؟) → "

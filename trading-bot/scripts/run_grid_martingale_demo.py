@@ -153,7 +153,7 @@ def main() -> None:
               float_format=lambda v: f"{v:+.1%}" if abs(v) < 10 else f"{v:,.0f}"))
     save = find(pathlib.Path(args.mt5).name).parent
     res.to_csv(save / "grid_martingale_survival.csv", index=False)
-    print(f"\n💾 marketdata/grid_martingale_survival.csv")
+    print("\n💾 marketdata/grid_martingale_survival.csv")
 
     # نمای «فروشنده»: بهترین ماه‌های بهترین پیکربندی
     best = res[res["alive"] == False].nlargest(1, "months")

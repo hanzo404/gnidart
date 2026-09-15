@@ -27,7 +27,6 @@ from typing import Optional
 import pandas as pd
 
 from bot.analysis.diagnostics import VERDICT_FA, diagnose_streak
-from bot.backtest.gate import GatedStrategy
 from bot.backtest.risk import BreakerPolicy
 from bot.backtest.v0_strategy import V0Strategy
 from bot.config import BotConfig, SymbolProfile
@@ -196,9 +195,19 @@ class LiveRunner:
 
     # ------------------------------------------------------------------ #
     def _offset_now(self, ts_server: pd.Timestamp) -> int:
+        """آفست سرور (EET/EEST) نسبت به UTC — بر پایهٔ زمانِ خودِ داده.
+
+        ممیزی ۴ (P1-4): قبلاً پارامتر ts_server نادیده گرفته می‌شد و DST
+        همیشه با «ساعت دیواریٔ الان» چک می‌شد. در لایو (poll هر ۲۰ ثانیه)
+        بی‌ضرر بود، اما برای ری‌پلی تاریخچه/تست پاریتی آفست غلط می‌داد.
+        """
         if self.utc_offset is not None:
             return self.utc_offset
-        return 180 if eet_dst_active(datetime.now(timezone.utc)) else 120
+        ts = (ts_server.to_pydatetime()
+              if isinstance(ts_server, pd.Timestamp) else ts_server)
+        if ts.tzinfo is not None:  # به UTC نرمال کن تا با قاعدهٔ EET قابل مقایسه باشد
+            ts = ts.astimezone(timezone.utc).replace(tzinfo=None)
+        return 180 if eet_dst_active(ts) else 120
 
     # ------------------------------------------------------------------ #
     def on_cycle(self) -> str:

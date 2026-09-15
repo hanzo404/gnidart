@@ -6,7 +6,7 @@ import pandas as pd
 
 from bot.backtest.engine import Backtester, BacktestConfig, Order
 from bot.backtest.gate import GatedStrategy
-from bot.regime.engine import (CHAOS, RANGE, RegimeConfig, RegimeEngine,
+from bot.regime.engine import (CHAOS, RANGE, RegimeEngine,
                                TREND_DOWN, TREND_UP, session_open)
 
 

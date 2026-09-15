@@ -1,11 +1,14 @@
 """کانفیگ پروژه — تمام پارامترها از YAML؛ بدون عدد جادویی در کد."""
 from __future__ import annotations
 
+import logging
 import pathlib
 from dataclasses import dataclass, field
 from typing import Dict, List, Tuple
 
 import yaml
+
+_log = logging.getLogger("bot.config")
 
 
 @dataclass
@@ -112,6 +115,48 @@ class BotConfig:
         return self.symbol_profiles.get(symbol, SymbolProfile())
 
     @staticmethod
+    def _coerce(v, current, where: str):
+        """هم‌نوع‌سازی مقدار YAML با نوع فیلد — ممیزی ۴ (P1-5).
+
+        YAML بدون نقل‌قول ``0.005`` را رشته می‌دهد؛ قبلاً بی‌صدا set می‌شد و
+        بعداً در ضرب‌ها TypeError می‌کرد. حالا: تبدیل صریح؛ نشد → هشدار +
+        مقدار پیش‌فرض می‌ماند. هرگز چیزی را بی‌صدا قورت نمی‌دهیم.
+        """
+        if v is None:
+            return None
+        tc = type(current)
+        # bool زیرکلاس int است — ترتیب چک‌ها مهم است
+        if tc is bool:
+            if isinstance(v, bool):
+                return v
+            if isinstance(v, str):
+                return v.strip().lower() in ("1", "true", "yes", "on")
+            _log.warning("کانفیگ %s: مقدار %r بولین نیست — پیش‌فرض ماند",
+                         where, v)
+            return current
+        if isinstance(v, bool):
+            _log.warning("کانفیگ %s: مقدار بولین (%r) برای فیلد %s — نادیده "
+                         "گرفته شد", where, v, tc.__name__)
+            return current
+        if isinstance(v, tc):
+            return v
+        try:
+            if tc is float:
+                return float(v)
+            if tc is int:
+                f = float(v)
+                if f.is_integer():
+                    return int(f)
+                raise ValueError(f"عدد صحیح نیست: {v!r}")
+            if tc is str:
+                return str(v)
+        except (TypeError, ValueError):
+            pass
+        _log.warning("کانفیگ %s: مقدار %r به نوع %s تبدیل نشد — پیش‌فرض ماند",
+                     where, v, tc.__name__)
+        return current
+
+    @staticmethod
     def load(path: str | pathlib.Path) -> "BotConfig":
         p = pathlib.Path(path)
         raw = yaml.safe_load(p.read_text(encoding="utf-8")) if p.exists() else {}
@@ -131,12 +176,25 @@ class BotConfig:
             if isinstance(raw.get(section), dict):
                 for k, v in raw[section].items():
                     if hasattr(target, k):
-                        setattr(target, k, v)
+                        setattr(target, k,
+                                BotConfig._coerce(v, getattr(target, k),
+                                                  f"{section}.{k}"))
+                    else:
+                        _log.warning(
+                            "کانفیگ: کلید ناشناخته «%s.%s» نادیده گرفته شد "
+                            "(غلط تایپی؟ فیلد جدید؟)", section, k)
         # پروفایل‌های نماد (فاز ۷) — روی پیش‌فرض‌های مستند override می‌شوند
         if isinstance(raw.get("symbol_profiles"), dict):
             for sym, d in raw["symbol_profiles"].items():
                 base = dict(vars(cfg.symbol_profiles.get(sym, SymbolProfile())))
-                base.update({k: v for k, v in d.items() if k in base})
+                for k, v in d.items():
+                    if k in base:
+                        base[k] = BotConfig._coerce(v, base.get(k),
+                                                     f"symbol_profiles.{sym}.{k}")
+                    else:
+                        _log.warning(
+                            "کانفیگ: کلید ناشناخته «symbol_profiles.%s.%s» "
+                            "نادیده گرفته شد", sym, k)
                 cfg.symbol_profiles[sym] = SymbolProfile(**base)
         # sessions: list -> tuple
         cfg.trading.sessions_utc = {

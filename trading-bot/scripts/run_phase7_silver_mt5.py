@@ -104,7 +104,7 @@ def main() -> None:
     # ---------- ۱) توزیع اسپرد ----------
     rep = spread_report(mt5)
     o = rep["overall"]
-    print(f"\n═══ اسپرد واقعی (۵.۷ سال) ═══")
+    print("\n═══ اسپرد واقعی (۵.۷ سال) ═══")
     print(f"  میانه ${o['50%']:.3f} | میانگین ${o['mean']:.3f} | "
           f"p90 ${o['90%']:.3f} | p95 ${o['95%']:.3f} | p99 ${o['99%']:.3f} | "
           f"حداکثر ${o['max']:.2f}")
@@ -134,7 +134,7 @@ def main() -> None:
         else pd.Timestamp("2026-09-09")
 
     print("\n═══ بک‌تست نقره — اسپرد واقعی لحظهٔ ورود ═══")
-    print(f"  پنجرهٔ ۳۶ماهه (مقایسه با first-look دuka):")
+    print("  پنجرهٔ ۳۶ماهه (مقایسه با first-look دuka):")
     r36 = run_backtest(m15, h4, reg, sess, start=start, end=end)
     print(f"    بدون گیت:      {fmt(r36, 36.0)}")
     r36g = run_backtest(m15, h4, reg, sess, gate=0.06, start=start, end=end)

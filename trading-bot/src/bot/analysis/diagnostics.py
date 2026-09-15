@@ -23,7 +23,6 @@ import math
 from dataclasses import dataclass, field
 from datetime import datetime
 
-import numpy as np
 import pandas as pd
 
 VERDICT_FA = {
@@ -87,7 +86,6 @@ def diagnose_streak(trades: pd.DataFrame, streak: int,
             f"فقط {len(trades)} معامله ثبت شده — حداقل آماری ۳۰ تا است؛ فقط ثبت می‌کنیم.")
         return rep
 
-    losses = trades[trades["pnl"] <= 0]
     wins = trades[trades["pnl"] > 0]
     wr = len(wins) / len(trades)
     base = baseline_wr if baseline_wr is not None else wr

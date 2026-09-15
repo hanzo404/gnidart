@@ -18,7 +18,6 @@ import argparse
 import pathlib
 import sys
 
-import pandas as pd
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1] / "src"))
 
@@ -58,8 +57,8 @@ def main() -> None:
     sess = session_open(m15["time"])
     print(f"  {len(m15):,} کندل M15 | رژیم/سشن مثل فاز ۲")
 
-    inner = V0Strategy(h4, rr=2.5)   # همان پارامترهای E فاز ۲
-    strat = GatedStrategy(inner, reg["regime"].to_numpy(), sess)
+    # (v0.5.8 پاک‌سازی: inner/strat ساخته می‌شد ولی استفاده نمی‌شد — هر run
+    #  استراتژی خودش را با همین پارامترها می‌سازد)
 
     print("\n═══ ۲) اجرا ═══")
     runs = {}

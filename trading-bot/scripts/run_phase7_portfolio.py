@@ -101,7 +101,7 @@ def main() -> None:
     s = run_silver(find(pathlib.Path(args.silver).name), args.silver_spread)
     months = 36.0
 
-    print(f"═══ پورتفوی طلا + نقره (لات ثابت 0.01، $30k، ۳ سال، بدون بریکر) ═══")
+    print("═══ پورتفوی طلا + نقره (لات ثابت 0.01، $30k، ۳ سال، بدون بریکر) ═══")
     print(f"  (اسپرد نقره ${args.silver_spread} — اندازه‌گیری دموی تو)")
     stats(g, "طلا (G6)", months)
     stats(s, "نقره", months)

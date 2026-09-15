@@ -20,7 +20,7 @@ from typing import Optional
 import numpy as np
 import pandas as pd
 
-from bot.backtest.engine import Order, Strategy
+from bot.backtest.engine import Order
 
 
 class V0Strategy:

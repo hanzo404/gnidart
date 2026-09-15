@@ -2,7 +2,7 @@
 import sys
 import pathlib
 import unittest
-from datetime import date, datetime
+from datetime import date
 
 import lzma
 import struct

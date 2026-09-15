@@ -28,7 +28,7 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
-from bot.analysis.meta import (FEATURES, MetaWFOConfig, fit_probs,
+from bot.analysis.meta import (MetaWFOConfig, fit_probs,
                                purged_monthly_windows)
 
 M_MIN, M_MAX = 0.5, 1.5
