@@ -36,7 +36,15 @@ def main() -> None:
         raise SystemExit(f"❌ ژورنال پیدا نشد: {p} — اول run_live.py را اجرا کن")
     Journal(str(p)).close()   # مهاجرت ستون symbol اگر DB قدیمی است
     conn = sqlite3.connect(p)
+    try:
+        # درس ویندوز (v0.5.8.2): اتصالِ بازمانده فایل db را قفل می‌کند
+        # (WinError 32 موقع حذف پوشهٔ موقتِ تست‌ها). همیشه در finally ببند.
+        _report(conn, args.days)
+    finally:
+        conn.close()
 
+
+def _report(conn: sqlite3.Connection, days: int) -> None:
     # read_sql_query: ستون‌ها حتی وقتی نتیجه خالی است نام درست دارند
     # (pd.DataFrame(fetchall()) با sqlite3.Row ستون‌های [0,1] می‌سازد — باگ #1)
     def q(sql: str) -> pd.DataFrame:
@@ -71,8 +79,8 @@ def main() -> None:
     if not trades.empty:
         trades["closed_at"] = pd.to_datetime(trades["closed_at"])
         trades["opened_at"] = pd.to_datetime(trades["opened_at"])
-        if args.days:
-            cut = pd.Timestamp.now() - pd.Timedelta(days=args.days)
+        if days:
+            cut = pd.Timestamp.now() - pd.Timedelta(days=days)
             trades = trades[trades["closed_at"] >= cut]
 
     open_syms = sorted(opens["symbol"].unique()) if not opens.empty else []
