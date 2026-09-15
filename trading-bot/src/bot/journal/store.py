@@ -77,7 +77,7 @@ class Journal:
                 self.conn.execute(
                     f"ALTER TABLE {table} ADD COLUMN symbol TEXT")
 
-    # ----------------写入---------------- #
+    # ---------------- نوشتن (write) ---------------- #
     def open_trade(
         self,
         opened_at: datetime,

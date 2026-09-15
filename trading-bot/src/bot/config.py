@@ -81,7 +81,7 @@ class SymbolProfile:
     min_lot_policy: str = "force"   # force = حداقل‌لات اجباری (رفتار طلا) | skip = رد اگر حجم < حداقل
     digits: int = 2                 # ارقام اعشار قیمت (نمایش/لاگ)
     baseline_wr: float = 0.348      # پایهٔ نرخ‌برد برای تشخیص/پست‌مورتم همان نماد
-    direction: str = None           # فیلتر جهت این آستین؛ None → از live.direction_filter
+    direction: str | None = None   # فیلتر جهت این آستین؛ None → از live.direction_filter
 
 
 # پیش‌فرض‌های مستند — config.yaml می‌تواند هر کدام را override کند
