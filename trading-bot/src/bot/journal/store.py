@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from contextlib import contextmanager
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
@@ -59,22 +60,42 @@ CREATE INDEX IF NOT EXISTS idx_equity_ts ON equity(ts);
 class Journal:
     def __init__(self, path: str) -> None:
         # فاز ۷ (چند-نمادی): دو پروسهٔ همزمان (طلا+نقره) روی همین فایل می‌نویسند
-        # → WAL + busy_timeout تا نوشتن‌های کوتاه همدیگر را قفل نکنند
-        self.conn = sqlite3.connect(path, timeout=15)
-        self.conn.row_factory = sqlite3.Row
-        self.conn.execute("PRAGMA journal_mode=WAL")
-        self.conn.execute("PRAGMA busy_timeout=15000")
-        self.conn.executescript(SCHEMA)
-        self._migrate()
-        self.conn.commit()
+        # → WAL + busy_timeout تا نوشتن‌های کوتاه همدیگر را قفل نکنند.
+        # (بهبود v0.5.8.1): اتصال کوتاه‌عمر — ببین _connect.
+        self.path = str(path)
+        with self._connect() as conn:
+            conn.executescript(SCHEMA)
+            self._migrate(conn)
 
-    def _migrate(self) -> None:
+    # ------------------------------------------------------------------ #
+    @contextmanager
+    def _connect(self):
+        """اتصال کوتاه‌عمر — هر عملیات اتصال خودش را باز و بسته می‌کند.
+
+        چرا (درس ویندوز، ۲۰۲۶-۰۹-۱۶ — ۲۸ تست قرمز روی VPS): کانکشنِ
+        همیشه‌باز یعنی فایل db تا آخر عمر پروسه «فایلِ باز» می‌ماند؛
+        ویندوز برخلاف لینوکس حذف پوشهٔ موقتِ تست را PermissionError می‌کرد.
+        WAL در خود فایل ماندگار است؛ فقط busy_timeout باید در هر اتصال
+        تازه ست شود. نوشتن‌های کوتاه‌عمر برای دو رانرِ همزمان هم بهترند
+        (پنجرهٔ قفل کوچک‌تر).
+        """
+        conn = sqlite3.connect(self.path, timeout=15)
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=15000")
+        try:
+            yield conn
+            conn.commit()
+        finally:
+            conn.close()
+
+    def _migrate(self, conn) -> None:
         """دیتابیس‌های قدیمی (فاز ۵): ستون symbol را بدون از دست رفتن داده اضافه کن."""
         for table in ("equity", "breaker_events"):
-            cols = {r["name"] for r in self.conn.execute(
+            cols = {r["name"] for r in conn.execute(
                 f"PRAGMA table_info({table})")}
             if "symbol" not in cols:
-                self.conn.execute(
+                conn.execute(
                     f"ALTER TABLE {table} ADD COLUMN symbol TEXT")
 
     # ---------------- نوشتن (write) ---------------- #
@@ -93,18 +114,18 @@ class Journal:
         features: Optional[Dict[str, Any]] = None,
         reason: str = "",
     ) -> int:
-        cur = self.conn.execute(
-            """INSERT INTO trades (opened_at, symbol, direction, strategy, regime, grade,
-               entry, stop, target, size_units, features_json, reason, status)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?, 'open')""",
-            (
-                opened_at.isoformat(), symbol, direction, strategy, regime, grade,
-                entry, stop, target, size_units,
-                json.dumps(features or {}, ensure_ascii=False), reason,
-            ),
-        )
-        self.conn.commit()
-        return int(cur.lastrowid)
+        with self._connect() as conn:
+            cur = conn.execute(
+                """INSERT INTO trades (opened_at, symbol, direction, strategy, regime, grade,
+                   entry, stop, target, size_units, features_json, reason, status)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?, 'open')""",
+                (
+                    opened_at.isoformat(), symbol, direction, strategy, regime, grade,
+                    entry, stop, target, size_units,
+                    json.dumps(features or {}, ensure_ascii=False), reason,
+                ),
+            )
+            return int(cur.lastrowid)
 
     def close_trade(
         self,
@@ -115,37 +136,42 @@ class Journal:
         mfe_r: Optional[float] = None,
         mae_r: Optional[float] = None,
     ) -> None:
-        self.conn.execute(
-            """UPDATE trades SET closed_at=?, exit_price=?, r_multiple=?,
-               mfe_r=?, mae_r=?, status='closed' WHERE id=?""",
-            (closed_at.isoformat(), exit_price, r_multiple, mfe_r, mae_r, trade_id),
-        )
-        self.conn.commit()
+        with self._connect() as conn:
+            conn.execute(
+                """UPDATE trades SET closed_at=?, exit_price=?, r_multiple=?,
+                   mfe_r=?, mae_r=?, status='closed' WHERE id=?""",
+                (closed_at.isoformat(), exit_price, r_multiple, mfe_r, mae_r, trade_id),
+            )
 
     def record_breaker_event(self, ts: datetime, kind: str, detail: str,
                              streak: int, size_multiplier: float,
                              symbol: Optional[str] = None) -> None:
-        self.conn.execute(
-            "INSERT INTO breaker_events (ts, kind, detail, streak, size_multiplier, symbol)"
-            " VALUES (?,?,?,?,?,?)",
-            (ts.isoformat(), kind, detail, streak, size_multiplier, symbol),
-        )
-        self.conn.commit()
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO breaker_events (ts, kind, detail, streak, size_multiplier, symbol)"
+                " VALUES (?,?,?,?,?,?)",
+                (ts.isoformat(), kind, detail, streak, size_multiplier, symbol),
+            )
 
     def record_equity(self, ts: datetime, equity: float,
                       symbol: Optional[str] = None) -> None:
-        self.conn.execute(
-            "INSERT INTO equity (ts, equity, symbol) VALUES (?,?,?)",
-            (ts.isoformat(), equity, symbol),
-        )
-        self.conn.commit()
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO equity (ts, equity, symbol) VALUES (?,?,?)",
+                (ts.isoformat(), equity, symbol),
+            )
 
-    # ----------------读取---------------- #
+    # ---------------- خواندن (read) ---------------- #
+    def query(self, sql: str, params: tuple = ()) -> List[sqlite3.Row]:
+        """SELECT آزاد — برای گزارش‌ها و تست‌ها (فقط خواندن، بدون تغییر ردیف)."""
+        with self._connect() as conn:
+            return conn.execute(sql, params).fetchall()
+
     def recent_trades(self, n: int = 50, status: str = "closed") -> List[Dict[str, Any]]:
-        rows = self.conn.execute(
+        rows = self.query(
             "SELECT * FROM trades WHERE status=? ORDER BY closed_at DESC LIMIT ?",
             (status, n),
-        ).fetchall()
+        )
         out = []
         for r in rows:
             d = dict(r)
@@ -155,13 +181,13 @@ class Journal:
 
     def stats(self) -> Dict[str, float]:
         """آمار سریع — پایه‌ی گزارش‌های خودتحلیلی."""
-        row = self.conn.execute(
+        row = self.query(
             """SELECT COUNT(*) n,
                       SUM(CASE WHEN r_multiple > 0 THEN 1 ELSE 0 END) wins,
                       AVG(r_multiple) avg_r,
                       SUM(r_multiple) total_r
                FROM trades WHERE status='closed'"""
-        ).fetchone()
+        )[0]
         n = row["n"] or 0
         return {
             "trades": float(n),
@@ -171,4 +197,4 @@ class Journal:
         }
 
     def close(self) -> None:
-        self.conn.close()
+        """سازگاری API — از v0.5.8.1 اتصالی برای بستن باقی نمانده است."""

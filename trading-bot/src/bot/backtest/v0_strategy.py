@@ -89,7 +89,8 @@ class V0Strategy:
         if len(bars) < 2:
             return np.timedelta64(1, "m")
         d = np.diff(bars["time"].to_numpy())   # timedelta64 — نوع‌امن
-        d = d[d > np.timedelta64(0)]
+        # واحد صریح «ns» (هشدار حذف در NumPy جدید: عددِ بدون واحد ممنوع می‌شود)
+        d = d[d > np.timedelta64(0, "ns")]
         return d.min() if len(d) else np.timedelta64(1, "m")
 
     # ------------------------------------------------------------------ #

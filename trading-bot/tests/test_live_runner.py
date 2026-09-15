@@ -377,8 +377,8 @@ class TestSilverSleeve(unittest.TestCase):
             prov.bars = uptrend_bars(seed=5, gap_last=False, scale=0.015,
                                      start="2026-06-03 12:00")
             r.on_cycle()
-            rows = jr.conn.execute(
-                "SELECT equity, symbol FROM equity ORDER BY ts").fetchall()
+            rows = jr.query(
+                "SELECT equity, symbol FROM equity ORDER BY ts")
             self.assertAlmostEqual(rows[-1]["equity"], 3000.0 - risk,
                                    places=3)
             self.assertEqual(rows[-1]["symbol"], "XAGUSD")
@@ -402,17 +402,17 @@ class TestJournalMigration(unittest.TestCase):
             c.commit()
             c.close()
             j = Journal(db)   # مهاجرت خودکار
-            mode = j.conn.execute("PRAGMA journal_mode").fetchone()[0]
+            mode = j.query("PRAGMA journal_mode")[0][0]
             self.assertEqual(mode.lower(), "wal")   # دو پروسهٔ همزمان
             j.record_equity(datetime.now(), 2990.0, symbol="XAGUSD")
-            rows = j.conn.execute(
-                "SELECT symbol, equity FROM equity ORDER BY ts").fetchall()
+            rows = j.query(
+                "SELECT symbol, equity FROM equity ORDER BY ts")
             self.assertIsNone(rows[0]["symbol"])    # ردیف قدیمی دست‌نخورده
             self.assertEqual(rows[1]["symbol"], "XAGUSD")
             j.record_breaker_event(datetime.now(), "derate", "تست", 3, 0.5,
                                    symbol="XAGUSD")
-            brk = j.conn.execute(
-                "SELECT symbol FROM breaker_events").fetchall()
+            brk = j.query(
+                "SELECT symbol FROM breaker_events")
             self.assertEqual(brk[0]["symbol"], "XAGUSD")
 
 
@@ -436,7 +436,7 @@ class TestOncePerBar(unittest.TestCase):
             r.on_cycle()
             r.on_cycle()                                  # همان کندل
             r.on_cycle()                                  # همان کندل
-            n = jr.conn.execute("SELECT COUNT(*) c FROM equity").fetchone()["c"]
+            n = jr.query("SELECT COUNT(*) c FROM equity")[0]["c"]
             self.assertEqual(n, 1)                        # نه هر poll — هر کندل یک ردیف
 
     def test_no_reentry_same_bar_after_stop(self):
