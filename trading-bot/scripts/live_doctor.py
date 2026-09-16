@@ -149,6 +149,11 @@ def run_watch(cfg: BotConfig) -> None:
     print("═══ ناظر سشن — مثل خود رانر داوری می‌کند؛ فقط-خواندنی برای بات ═══")
     print("هر ۶۰ ثانیه یک اسکن. اسپرد فقط داخل سشن (۱۲–۲۰ UTC) نمونه‌برداری"
           " می‌شود. پایان خودکار بعد از ۲۰:۰۰ UTC؛ Ctrl+C = خلاصهٔ فوری.\n")
+    ti = mt5.terminal_info()
+    if ti is not None and not getattr(ti, "trade_allowed", False):
+        print("⛔ توجه: Algo Trading ترمینال خاموش است — لحظه‌های «آمادهٔ "
+              "ورود» سفارشان رد می‌شود! اول دکمهٔ Algo Trading در MT5 را "
+              "سبز کن.\n")
 
     rows: list = []
     last_bar: dict = {}
@@ -192,6 +197,11 @@ def run_watch(cfg: BotConfig) -> None:
                     v = "بلاک: تاریخچهٔ کم (<۲۵۰ کندل)"
                 else:
                     v = decide(m15, h4, p, prv)
+                    if v.startswith("✅"):
+                        ti = mt5.terminal_info()
+                        if ti is not None and not getattr(ti, "trade_allowed",
+                                                          False):
+                            v += " — ⚠️ ولی Algo Trading خاموش: رد می‌شود!"
                 rows.append({"ts_utc": f"{now:%Y-%m-%d %H:%M:%S}",
                              "symbol": sym, "kind": "bar",
                              "spread_usd": None, "gate": p.max_spread_usd,
@@ -223,6 +233,16 @@ def run_once(cfg: BotConfig) -> None:
     print(f"اکانت {acc['login']} روی سرور {acc['server']} | "
           f"{'✅ دمو' if acc['is_demo'] else '⛔ واقعی!'} | "
           f"موجودی ${acc['balance']:,.0f}")
+
+    # درس ۱۶ سپتامبر: ۲۶ روزِ صفرِ معامله = دکمهٔ Algo Trading خاموش
+    # (retcode 10027 — ترمینال سفارش برنامه‌ای را رد می‌کند). از این پس
+    # این چک همیشه اولین خط گزارش است.
+    ti = mt5.terminal_info()
+    ta = bool(getattr(ti, "trade_allowed", False)) if ti else None
+    print("Algo Trading ترمینال: "
+          + ("✅ روشن — سفارش‌ها قابل ارسال" if ta else
+             "⛔ خاموش — همهٔ سفارش‌ها با retcode 10027 رد می‌شوند! "
+             "(دکمهٔ Algo Trading در نوار ابزار MT5 را سبز کن)"))
 
     print("\n── ۳) پوزیشن‌های باز ترمینال ──")
     allp = mt5.positions_get() or []
