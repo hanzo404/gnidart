@@ -1,6 +1,6 @@
 /* ============================================================
-   YENOLIFE · Cart v1 · Woodmart compatible
-   سبد خرید — هم‌زبان با تسویه‌حساب v2
+   YENOLIFE · Cart v2 · Woodmart layout fix
+   سبد خرید — هم‌زبان با تسویه‌حساب v2، اصلاح عرض ستون نام
    Appearance → Customize → Additional CSS
    Does not change cart logic, only appearance.
    ============================================================ */
@@ -140,19 +140,20 @@ body.woocommerce-cart .cart-collaterals .cart-totals-inner {
     box-shadow: none;
 }
 
-/* 04 · Cart table */
+/* 04 · Cart table — explicit widths prevent Woodmart collapsing name column */
 body.woocommerce-cart table.shop_table.cart,
 body.woocommerce-cart .woocommerce-cart-form__contents {
-    width: 100%;
+    width: 100% !important;
     margin: 0;
     border: 0;
-    border-collapse: separate;
+    border-collapse: separate !important;
     border-spacing: 0;
     background: transparent;
+    table-layout: auto !important;
 }
 
 body.woocommerce-cart table.shop_table.cart thead th {
-    padding: 16px 20px;
+    padding: 16px 14px;
     border: 0;
     border-bottom: 1px solid var(--yl-line);
     background: transparent;
@@ -164,21 +165,86 @@ body.woocommerce-cart table.shop_table.cart thead th {
 }
 
 body.woocommerce-cart table.shop_table.cart td {
-    padding: 18px 20px;
+    padding: 18px 14px;
     border: 0;
     border-bottom: 1px solid var(--yl-line);
     background: transparent;
     vertical-align: middle;
     text-align: start;
+    white-space: normal;
+    word-break: normal;
+    overflow-wrap: break-word;
 }
 
 body.woocommerce-cart table.shop_table.cart tr:last-child td {
     border-bottom: 0;
 }
 
+/* Force table display on tablet where Woodmart tries to make it block (768-1024) */
+@media (min-width: 701px) and (max-width: 1024px) {
+    body.woocommerce-cart table.shop_table.cart {
+        display: table !important;
+        table-layout: auto !important;
+    }
+    body.woocommerce-cart table.shop_table.cart thead {
+        display: table-header-group !important;
+    }
+    body.woocommerce-cart table.shop_table.cart tbody {
+        display: table-row-group !important;
+    }
+    body.woocommerce-cart table.shop_table.cart tr {
+        display: table-row !important;
+    }
+    body.woocommerce-cart table.shop_table.cart th,
+    body.woocommerce-cart table.shop_table.cart td {
+        display: table-cell !important;
+    }
+    body.woocommerce-cart table.shop_table.cart td::before {
+        content: none !important;
+    }
+}
+
 body.woocommerce-cart .product-remove {
-    width: 40px;
+    width: 36px !important;
+    min-width: 36px !important;
     text-align: center !important;
+    white-space: nowrap !important;
+}
+
+body.woocommerce-cart .product-thumbnail {
+    width: 72px !important;
+    min-width: 68px !important;
+    white-space: nowrap !important;
+}
+
+body.woocommerce-cart .product-name {
+    width: 44% !important;
+    min-width: 200px !important;
+    max-width: 480px !important;
+    white-space: normal !important;
+    word-break: normal !important;
+    overflow-wrap: break-word !important;
+}
+
+body.woocommerce-cart .product-price,
+body.woocommerce-cart .product-quantity,
+body.woocommerce-cart .product-subtotal {
+    white-space: nowrap !important;
+}
+
+body.woocommerce-cart .product-price {
+    width: 11% !important;
+    min-width: 80px !important;
+}
+
+body.woocommerce-cart .product-quantity {
+    width: 124px !important;
+    min-width: 118px !important;
+}
+
+body.woocommerce-cart .product-subtotal {
+    width: 13% !important;
+    min-width: 92px !important;
 }
 
 body.woocommerce-cart .product-remove a.remove {
@@ -213,11 +279,15 @@ body.woocommerce-cart .product-thumbnail img {
 }
 
 body.woocommerce-cart .product-name a {
+    display: inline !important;
     color: var(--yl-ink);
     font-weight: 600;
     font-size: 13px;
     line-height: 1.8;
     text-decoration: none;
+    white-space: normal !important;
+    word-break: normal !important;
+    overflow-wrap: break-word !important;
 }
 
 body.woocommerce-cart .product-name a:hover {
@@ -305,29 +375,35 @@ body.woocommerce-cart .wd-quantity-minus:hover {
     color: var(--yl-accent);
 }
 
-/* 05 · Actions row — coupon + update */
+/* 05 · Actions row — coupon + update — robust against Woodmart */
 body.woocommerce-cart .cart-actions,
 body.woocommerce-cart table.cart td.actions,
 body.woocommerce-cart .woocommerce-cart-form .actions {
     display: flex !important;
-    flex-wrap: wrap;
-    gap: 14px;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    gap: 14px !important;
+    align-items: center !important;
+    justify-content: space-between !important;
     padding: 18px 20px !important;
     border: 0 !important;
     background: #fcfcfd !important;
     border-top: 1px solid var(--yl-line) !important;
+    width: 100% !important;
+    box-sizing: border-box !important;
 }
 
 body.woocommerce-cart .coupon,
 body.woocommerce-cart .wd-coupon-form {
     display: flex !important;
-    flex-wrap: wrap;
-    gap: 10px;
-    align-items: center;
-    flex: 1 1 260px;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+    align-items: center !important;
+    flex: 1 1 300px !important;
     float: none !important;
+    max-width: none !important;
+    width: auto !important;
 }
 
 body.woocommerce-cart .coupon label {
