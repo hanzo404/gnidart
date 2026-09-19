@@ -1,6 +1,6 @@
 /* ============================================================
-   YENOLIFE · A calmer, clearer checkout
-   نسخه جایگزین کامل CSS قبلی — مخصوص تسویه‌حساب کلاسیک ووکامرس
+   YENOLIFE · Checkout v2 · Woodmart layout fix
+   نسخه ۲ — جایگزین کامل CSS قبلی، با اصلاح ستون‌های وودمارت
    Appearance → Customize → Additional CSS
 
    Does not change checkout fields, gateways, or order processing.
@@ -38,17 +38,24 @@ body.woocommerce-checkout .woocommerce * {
     box-sizing: border-box;
 }
 
-/* 02 · RTL layout: customer on the RIGHT, review on the LEFT.
-   No fixed grid rows: WooCommerce's AJAX error notices stay above
-   the form instead of overlapping either column. */
+/* 02 · Classic WooCommerce AND Woodmart's extra review wrapper.
+   Woodmart sets max-width: 50% on .customer-details and
+   .checkout-order-review. In a grid, those limits shrink each
+   already-sized column AGAIN. Both limits must be reset.
+   No fixed grid rows: AJAX notices still take a full row above. */
 body.woocommerce-checkout form.checkout {
+    --yl-checkout-columns: minmax(0, 1.45fr) minmax(340px, 1fr);
+    --yl-review-column: 2;
     display: grid;
-    grid-template-columns: minmax(0, 1.52fr) minmax(340px, 1fr);
+    grid-template-columns: var(--yl-checkout-columns);
+    grid-auto-flow: row dense;
     gap: 24px;
     align-items: start;
     direction: rtl;
-    margin: 0;
     width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
 }
 
 body.woocommerce-checkout form.checkout::before,
@@ -56,7 +63,7 @@ body.woocommerce-checkout form.checkout::after {
     content: none;
 }
 
-body.woocommerce-checkout form.checkout > :not(#customer_details):not(#order_review):not(#order_review_heading) {
+body.woocommerce-checkout form.checkout > :not(#customer_details):not(#order_review):not(#order_review_heading):not(.checkout-order-review) {
     grid-column: 1 / -1;
     min-width: 0;
 }
@@ -64,13 +71,18 @@ body.woocommerce-checkout form.checkout > :not(#customer_details):not(#order_rev
 body.woocommerce-checkout #customer_details,
 body.woocommerce-checkout #order_review {
     width: 100%;
+    max-width: none !important; /* Counter Woodmart's 50% cap. */
     min-width: 0;
     margin: 0;
     float: none;
+    flex: none;
+    order: 0;
+    grid-row: auto;
+    align-self: start;
     background: var(--yl-surface);
     border: 1px solid var(--yl-line);
     border-radius: var(--yl-radius);
-    box-shadow: 0 3px 12px rgb(32 35 50 / 2%);
+    box-shadow: 0 3px 12px rgb(32 35 50 / 3%);
 }
 
 body.woocommerce-checkout #customer_details {
@@ -80,9 +92,91 @@ body.woocommerce-checkout #customer_details {
 }
 
 body.woocommerce-checkout #order_review {
-    grid-column: 2;
+    grid-column: var(--yl-review-column, 2);
+    position: relative;
     padding: 26px;
     direction: rtl;
+}
+
+/* The GRID ITEM in Woodmart is the wrapper, not #order_review.
+   Remove its old gray frame/padding, leaving only one order card.
+   The theme's :is(..., .woocommerce-order-pay #order_review) rule
+   inherits ID specificity; override only this frame's decoration. */
+body.woocommerce-checkout form.checkout .checkout-order-review {
+    grid-column: var(--yl-review-column, 2);
+    grid-row: auto;
+    display: block;
+    width: 100%;
+    max-width: none !important;
+    min-width: 0;
+    flex: none;
+    order: 0;
+    float: none;
+    align-self: start;
+    position: relative;
+    margin: 0;
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0;
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+body.woocommerce-checkout form.checkout .checkout-order-review::before,
+body.woocommerce-checkout form.checkout .checkout-order-review::after {
+    content: none !important;
+    display: none !important;
+}
+
+/* Older Woodmart child themes sometimes put both columns in a row.
+   Scope the reset to checkout rows that actually contain BOTH IDs;
+   never reset every .row/.col on the site or flatten semantic nodes. */
+body.woocommerce-checkout form.checkout > :is(.row, .wd-grid-g):has(#customer_details):has(#order_review) {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: var(--yl-checkout-columns);
+    grid-auto-flow: row dense;
+    align-items: start;
+    gap: inherit;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+}
+
+body.woocommerce-checkout form.checkout > :is(.row, .wd-grid-g):has(#customer_details):has(#order_review)::before,
+body.woocommerce-checkout form.checkout > :is(.row, .wd-grid-g):has(#customer_details):has(#order_review)::after {
+    content: none;
+}
+
+body.woocommerce-checkout form.checkout > :is(.row, .wd-grid-g) > div:has(#customer_details),
+body.woocommerce-checkout form.checkout > :is(.row, .wd-grid-g) > div:has(#order_review) {
+    width: 100%;
+    max-width: none !important;
+    min-width: 0;
+    flex: none;
+    float: none;
+    margin: 0;
+    padding: 0;
+    order: 0;
+}
+
+body.woocommerce-checkout form.checkout > :is(.row, .wd-grid-g) > div:has(#customer_details) {
+    grid-column: 1;
+}
+
+body.woocommerce-checkout form.checkout > :is(.row, .wd-grid-g) > div:has(#order_review) {
+    grid-column: var(--yl-review-column, 2);
+}
+
+body.woocommerce-checkout form.checkout > :is(.row, .wd-grid-g) > .woocommerce-NoticeGroup {
+    grid-column: 1 / -1;
+    order: -1;
+}
+
+/* Prevent Woodmart's top offset from pushing the billing title down. */
+body.woocommerce-checkout #customer_details > .woocommerce-billing-fields {
+    margin-top: 0;
 }
 
 /* Keep the real heading available to screen readers. */
@@ -163,6 +257,17 @@ body.woocommerce-checkout form.checkout .form-row-last {
     clear: none;
 }
 
+/* Pair related existing fields even if a Persian checkout plugin marks
+   them "form-row-wide". Unknown/plugin-specific fields remain full-width. */
+body.woocommerce-checkout form.checkout :is(
+    #billing_state_field, #billing_city_field,
+    #billing_postcode_field, #billing_phone_field,
+    #shipping_state_field, #shipping_city_field,
+    #shipping_postcode_field, #shipping_phone_field
+) {
+    grid-column: span 1;
+}
+
 body.woocommerce-checkout .woocommerce-input-wrapper {
     display: block;
     width: 100%;
@@ -171,7 +276,7 @@ body.woocommerce-checkout .woocommerce-input-wrapper {
 body.woocommerce-checkout .form-row label:not(.woocommerce-form__label-for-checkbox) {
     display: block;
     margin: 0 0 8px;
-    font-size: 13px;
+    font-size: 14px;
     line-height: 1.8;
     font-weight: 550;
     color: #454650;
@@ -185,6 +290,7 @@ body.woocommerce-checkout .form-row label .required {
 }
 
 body.woocommerce-checkout .form-row label .optional {
+    position: static;
     color: var(--yl-muted);
     font-size: 11px;
     font-weight: 400;
@@ -206,7 +312,7 @@ body.woocommerce-checkout form.checkout_coupon .input-text {
     background: var(--yl-surface);
     color: var(--yl-ink);
     font-family: inherit;
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 400;
     line-height: 1.8;
     box-shadow: none;
@@ -363,6 +469,18 @@ body.woocommerce-checkout .select2-container--default .select2-results__option--
 }
 
 /* 06 · Order: legible product lines and transparent costs */
+body.woocommerce-checkout #order_review > .wd-table-wrapper {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    margin: 0;
+    padding: 0;
+    overflow-x: auto;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+}
+
 body.woocommerce-checkout #order_review table.shop_table {
     width: 100%;
     margin: 0;
@@ -431,7 +549,13 @@ body.woocommerce-checkout #order_review .cart-subtotal td {
     padding-top: 22px;
 }
 
-body.woocommerce-checkout #order_review .cart-discount td {
+body.woocommerce-checkout #order_review .shop_table .amount {
+    color: var(--yl-ink);
+    font-weight: 600;
+}
+
+body.woocommerce-checkout #order_review .cart-discount td,
+body.woocommerce-checkout #order_review .cart-discount .amount {
     color: var(--yl-success);
 }
 
@@ -476,6 +600,69 @@ body.woocommerce-checkout ul.woocommerce-shipping-methods li {
 body.woocommerce-checkout ul.woocommerce-shipping-methods label {
     font-size: 12px;
     cursor: pointer;
+}
+
+/* Woodmart's order table is flex-based. Make totals and shipping clear
+   without altering the gateway HTML, notices, or AJAX replacement targets. */
+body.woocommerce-checkout .checkout-order-review .woocommerce-checkout-review-order-table > :is(thead, tbody, tfoot) {
+    width: 100%;
+}
+
+body.woocommerce-checkout .checkout-order-review .woocommerce-checkout-review-order-table tr {
+    gap: 14px;
+}
+
+body.woocommerce-checkout .checkout-order-review .woocommerce-checkout-review-order-table .cart_item .product-name {
+    min-width: 0;
+    flex: 1 1 0%;
+}
+
+body.woocommerce-checkout .checkout-order-review .woocommerce-checkout-review-order-table .cart_item .product-total {
+    flex: 0 0 auto;
+}
+
+body.woocommerce-checkout .checkout-order-review .woocommerce-checkout-review-order-table tr.shipping {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    padding-block: 10px;
+}
+
+body.woocommerce-checkout .checkout-order-review .woocommerce-checkout-review-order-table tr.shipping > :is(th, td) {
+    width: 100%;
+    flex: 1 1 100%;
+    padding-block: 5px;
+    text-align: start;
+    white-space: normal;
+}
+
+body.woocommerce-checkout #order_review ul.woocommerce-shipping-methods li:has(> input[type="radio"]) {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    padding: 11px 12px;
+    border: 1px solid var(--yl-line);
+    border-radius: 9px;
+    background: #fafafb;
+}
+
+body.woocommerce-checkout #order_review ul.woocommerce-shipping-methods li:has(> input:checked) {
+    border-color: #eab5c2;
+    background: var(--yl-accent-soft);
+}
+
+body.woocommerce-checkout #order_review ul.woocommerce-shipping-methods input.shipping_method {
+    float: none;
+    margin: 4px 0 0;
+}
+
+body.woocommerce-checkout #order_review ul.woocommerce-shipping-methods label {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    text-align: start;
+    line-height: 1.9;
+    font-size: 13px;
 }
 
 /* 07 · Payment and one unambiguous primary action */
@@ -527,6 +714,7 @@ body.woocommerce-checkout #payment .payment_box {
     padding: 0;
     margin: 10px 0 0;
     background: transparent;
+    box-shadow: none;
     color: #686874;
     font-size: 12px;
     line-height: 1.9;
@@ -559,7 +747,7 @@ body.woocommerce-checkout #payment #place_order {
     box-shadow: 0 4px 10px rgb(217 35 76 / 12%);
     color: #fff;
     font-family: inherit;
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 700;
     line-height: 1.8;
     text-align: center;
@@ -625,6 +813,28 @@ body.woocommerce-checkout .woocommerce-error {
     color: var(--yl-error);
 }
 
+/* Beat only Woodmart's explicit inline-toggle !important rules. */
+body.woocommerce-checkout :is(.woocommerce-form-coupon-toggle, .woocommerce-form-login-toggle) > .woocommerce-info {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 5px 8px;
+    width: 100%;
+    margin: 0;
+    padding: 15px 18px !important;
+    border: 1px solid var(--yl-line);
+    background: var(--yl-surface) !important;
+    color: var(--yl-ink) !important;
+    font-weight: 400;
+    text-align: start;
+}
+
+body.woocommerce-checkout :is(.woocommerce-form-coupon-toggle, .woocommerce-form-login-toggle) > .woocommerce-info :is(.showcoupon, .showlogin) {
+    color: var(--yl-accent-hover) !important;
+    font-weight: 600;
+}
+
 body.woocommerce-checkout form.checkout_coupon,
 body.woocommerce-checkout form.woocommerce-form-login {
     padding: 24px;
@@ -644,25 +854,30 @@ body.woocommerce-checkout .woocommerce [hidden] {
     display: none !important;
 }
 
-/* Sticky only when there is enough height to reach the whole card. */
-@media (min-width: 981px) and (min-height: 1100px) {
-    body.woocommerce-checkout #order_review {
-        position: sticky;
-        top: 24px;
-    }
-}
-
 /* 09 · Tablet / mobile: information first, payment second */
 @media (max-width: 980px) {
     body.woocommerce-checkout form.checkout {
-        grid-template-columns: minmax(0, 1fr);
+        --yl-checkout-columns: minmax(0, 1fr);
+        --yl-review-column: 1;
+        grid-template-columns: var(--yl-checkout-columns);
         gap: 20px;
     }
 
     body.woocommerce-checkout #customer_details,
     body.woocommerce-checkout #order_review {
         grid-column: 1;
-        position: static;
+        position: relative;
+    }
+
+    body.woocommerce-checkout #customer_details,
+    body.woocommerce-checkout form.checkout > :is(.row, .wd-grid-g) > div:has(#customer_details) {
+        order: 1;
+    }
+
+    body.woocommerce-checkout #order_review,
+    body.woocommerce-checkout form.checkout .checkout-order-review,
+    body.woocommerce-checkout form.checkout > :is(.row, .wd-grid-g) > div:has(#order_review) {
+        order: 2;
     }
 }
 
