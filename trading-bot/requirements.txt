@@ -1,0 +1,6 @@
+# core
+pyyaml>=6.0
+pandas>=2.0
+numpy>=1.26
+requests>=2.31
+scikit-learn>=1.3   # meta.py (فاز ۶-ب) — گزارش ممیزی ۴ (۲۰۲۶-۰۹-۱۵): از requirements جا افتاده بود

@@ -1,0 +1,32 @@
+name: CI
+
+# v0.5.8 — آیتم ۵ اسپرینت: هر push/PR باید خودش را اثبات کند.
+# فلسفهٔ پروژه: «سبز بودن تست‌ها حافظه‌ای نباید بماند» — اینجا قفل می‌شود.
+
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: trading-bot
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: trading-bot/requirements-lock.txt
+
+      - name: نصب وابستگی‌ها (قفل‌شده)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-lock.txt pytest ruff
+
+      - name: تست‌ها
+        run: PYTHONPATH=src python -m pytest tests/ -q
+
+      - name: Lint (سینتکس + pyflakes)
+        run: ruff check --select E9,F src/ tests/ scripts/

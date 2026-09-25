@@ -1,0 +1,4 @@
+# فقط ویندوز — برای heartbeat و فاز دمو:
+MetaTrader5>=5.0.45
+# باندل گواهی Mozilla — مخزن SSL پایتون روی Server 2022 ناقص است
+certifi>=2024.0

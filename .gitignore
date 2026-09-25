@@ -1,0 +1,12 @@
+# lab working copies (canonical data lives at repo root on GitHub)
+marketdata/
+# never committed (private session memory)
+.learning/
+# local runtime
+data/
+__pycache__/
+*.pyc
+.venv/
+*.tmp
+*.log
+.DS_Store
