@@ -1,0 +1,71 @@
+; ─────────────────────────────────────────────────────────────
+;  Esprakt — پیش‌تنظیم طلا (XAUUSD)
+;  برای بارگذاری: فایل را در MQL5/Presets کپی و در آزمونگر استراتژی
+;  یا کلید F7 انتخاب کنید.
+;
+;  نکته: هیچ‌کدام از این اعداد «بهینه» نشده‌اند. همه ضریبِ نسبی‌اند
+;  (ATR و اسپرد) تا با هر بروکر و هر نوسان خودکار سازگار شوند.
+;  اعتبارسنجیِ واقعی را باید روی دادهٔ بروکرِ خودتان در آزمونگر استراتژی
+;  انجام دهید — روش گام‌به‌گام در STRATEGY.md آمده است.
+; ─────────────────────────────────────────────────────────────
+
+; ── ساختار بازار ──
+SwingK=3
+PoolTolATR=0.25
+PoolWindow=8
+AtrPeriod=14
+
+; ── زنجیرهٔ ICT ──
+UseMSS=true
+MssLookback=10
+MssMaxBars=4
+DispATR=0.8
+DispMaxBars=3
+UseFvgEntry=false
+FvgMinATR=0.15
+FvgEntryPos=0.5
+UseHtfBias=false
+BiasFast=20
+BiasSlow=48
+SetupMaxAge=4
+
+; ── اجرا ──
+RR=1.5
+StopBufferATR=0.15
+MinStopATR=0.3
+MaxStopATR=3.0
+MinStopSpread=3.0
+ExpiryMinutes=30
+MaxHoldBars=60
+AllowLong=true
+AllowShort=true
+
+; ── سشن (پیش‌فرض خاموش: لبه در کل روز هست، نه فقط کیل‌زون) ──
+UseSessionFilter=false
+SessionUTCShift=0
+KZ1Start=3
+KZ1End=4
+KZ2Start=10
+KZ2End=11
+KZ3Start=14
+KZ3End=15
+
+; ── مدیریت ریسک ──
+RiskPercent=0.25
+MaxDailyLossPct=2.0
+MaxDrawdownPct=15.0
+MaxTradesPerDay=6
+MaxSpreadPoints=0
+AutoSpreadATR=0.35
+LadderStep2=2
+LadderStep3=3
+LadderStopAt=5
+MaxRiskMoneyAbs=0
+
+; ── اجرا ──
+Magic=20260928
+SlippagePoints=20
+LiveTrading=false
+Verbose=true
+ShowDashboard=true
+LogFilePrefix=esprakt

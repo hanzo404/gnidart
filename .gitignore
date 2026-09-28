@@ -10,3 +10,10 @@ __pycache__/
 *.tmp
 *.log
 .DS_Store
+
+# research artifacts: keep the summary tables (the evidence),
+# drop the bulky per-trade dumps (regenerable via research/exp*.py)
+research/results/*trades*.csv
+research/results/exp04_US30.csv
+research/results/exp04_NAS100.csv
+research/results/parity_*.csv
