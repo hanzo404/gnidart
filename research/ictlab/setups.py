@@ -73,6 +73,7 @@ def build_signals(
     p: SetupParams,
     point: float,
     spread: float,
+    spread_col: np.ndarray | None = None,
 ) -> pd.DataFrame:
     """از فهرست جاروب‌ها، ستاپ‌های کامل و معتبر را می‌سازد.
 
@@ -163,7 +164,8 @@ def build_signals(
             continue
         if risk < p.min_stop_atr * a or risk > p.max_stop_atr * a:
             continue
-        if risk < p.min_stop_spread * spread:
+        spr = float(spread_col[t]) if spread_col is not None else spread
+        if risk < p.min_stop_spread * spr:
             continue
         rows.append((m5.time.values[mss_bar], d, float(entry), float(stop), p.tag()))
 

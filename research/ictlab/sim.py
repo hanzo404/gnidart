@@ -53,6 +53,7 @@ def simulate(
     spec: Spec,
     p: SimParams,
     slip_mult: float = 1.0,
+    spread_col: np.ndarray | None = None,
 ) -> pd.DataFrame:
     """اجرای سیگنال‌ها روی کندل M1. signals باید ستون‌های زیر را داشته باشد:
     time, dir, entry (قیمت لیمیت), stop (قیمت خام، بدون بافر), tag (اختیاری)
@@ -65,6 +66,11 @@ def simulate(
     m_high = m1.high.values
     m_low = m1.low.values
     m_close = m1.close.values
+    # اسپردِ واقعی هر کندل اگر داده شود؛ وگرنه مقدار ثابتِ مشخصات نماد.
+    # این برای طلا حیاتی است: اسپرد از ۰.۱۴ در ساعت‌های آرام تا بیش از ۱.۰
+    # در لحظه‌های بی‌نقدشوندگی نوسان می‌کند.
+    spr_arr = (np.asarray(spread_col, dtype=np.float64) if spread_col is not None
+               else None)
     spread = spec.spread_pts * spec.point
     slip = spec.slippage_pts * spec.point * slip_mult
 
@@ -86,8 +92,9 @@ def simulate(
         if st >= len(m_open) or st < busy_until:
             continue
 
+        spr_here = float(spr_arr[st]) if spr_arr is not None else spread
         risk = abs(entry - stop)
-        if risk < p.min_stop_spread * spread or risk <= 0:
+        if risk < p.min_stop_spread * spr_here or risk <= 0:
             continue
         # جهتِ استاپ باید با جهتِ معامله سازگار باشد (استاپ پشت قیمت)
         if direction * (entry - stop) <= 0:
@@ -118,7 +125,8 @@ def simulate(
         if fill < 0:
             continue
         # کندل‌ها بر پایهٔ BID هستند ⇒ خرید در ASK پر می‌شود، فروش در BID.
-        fill_price += (spread + slip) if direction == 1 else -slip
+        fill_spread = float(spr_arr[fill]) if spr_arr is not None else spread
+        fill_price += (fill_spread + slip) if direction == 1 else -slip
 
         # فاصلهٔ واقعی ریسک پس از اسلیپیج
         real_risk = abs(fill_price - stop)
@@ -126,7 +134,7 @@ def simulate(
             continue
         target = fill_price + direction * p.rr * real_risk
         # بستن معامله هم هزینه دارد: فروش در BID رایگان است، خرید در ASK گران
-        exit_cost = -slip if direction == 1 else (spread + slip)
+        exit_cost = (-slip if direction == 1 else (fill_spread + slip))
 
         # ── مرحلهٔ ۲: مدیریت خروج
         exit_price, reason, bars_held = np.nan, "", 0

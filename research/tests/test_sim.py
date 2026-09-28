@@ -154,3 +154,55 @@ if __name__ == "__main__":
     test_spread_is_charged()
     test_no_lookahead_fill()
     print("همهٔ آزمون‌ها سبز ✅")
+
+
+def test_variable_spread_matches_constant():
+    """مسیر اسپردِ متغیر باید وقتی آرایه ثابت است، دقیقاً مثل مسیر قدیمی باشد."""
+    import numpy as np
+    import pandas as pd
+    from ictlab.data import Spec
+    from ictlab.sim import SimParams, simulate
+
+    spec = Spec("T", None, point=0.01, spread_pts=14.0, slippage_pts=3.0)
+    rng = np.random.default_rng(7)
+    n = 3000
+    m1 = pd.DataFrame({
+        "time": pd.date_range("2024-01-01", periods=n, freq="1min"),
+        "open": 2000 + np.cumsum(rng.normal(0, 0.2, n)),
+    })
+    m1["high"] = m1.open + 0.6
+    m1["low"] = m1.open - 0.6
+    m1["close"] = m1.open + rng.normal(0, 0.1, n)
+    m1["volume"] = 1
+    m1["spread"] = 14.0
+    sig = pd.DataFrame({
+        "time": m1.time.iloc[100:200].values, "dir": 1, "stop": m1.low.iloc[100:200].values - 0.3,
+        "entry": m1.close.iloc[100:200].values - 0.1, "bar": np.arange(100, 200),
+    })
+    p = SimParams(rr=1.5, max_hold_bars=30, min_stop_spread=3.0)
+    a = simulate(m1, sig, spec, p)
+    b = simulate(m1, sig, spec, p, spread_col=np.full(n, 0.14))
+    assert len(a) == len(b)
+    assert np.allclose(a.r.values, b.r.values)
+
+
+def test_zero_spread_means_no_cost():
+    """با اسپرد صفر، هزینهٔ ورود و خروج باید دقیقاً صفر باشد (بجز اسلیپیج)."""
+    import numpy as np
+    import pandas as pd
+    from ictlab.data import Spec
+    from ictlab.sim import SimParams, simulate
+
+    spec = Spec("T", None, point=0.01, spread_pts=0.0, slippage_pts=0.0)
+    m1 = pd.DataFrame({
+        "time": pd.date_range("2024-01-01", periods=400, freq="1min"),
+        "open": 2000.0,
+    })
+    m1["high"], m1["low"], m1["close"] = 2001.0, 1999.0, 2000.0
+    m1["volume"], m1["spread"] = 1, 0.0
+    sig = pd.DataFrame({"time": m1.time.iloc[50:60].values, "dir": 1, "stop": 1998.0,
+                        "entry": 1999.5, "bar": np.arange(50, 60)})
+    tr = simulate(m1, sig, spec, SimParams(rr=1.5, max_hold_bars=20, min_stop_spread=0.0))
+    assert len(tr) > 0
+    # ورود دقیقاً روی entry و خروج دقیقاً روی close
+    assert np.allclose(tr.entry.values, 1999.5)
