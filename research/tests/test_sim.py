@@ -206,3 +206,39 @@ def test_zero_spread_means_no_cost():
     assert len(tr) > 0
     # ورود دقیقاً روی entry و خروج دقیقاً روی close
     assert np.allclose(tr.entry.values, 1999.5)
+
+
+def test_stop_never_on_wrong_side_of_entry():
+    """استاپِ خرید باید زیرِ ورود و استاپِ فروش بالای آن باشد.
+
+    اگر قیمت بین کندلِ جاروب و کندلِ جابه‌جا جهش کند، «زیرِ کف جاروب»
+    می‌تواند بالای قیمتِ ورود بیفتد؛ چنین معامله‌ای بی‌معناست و نباید
+    اصلاً تولید شود.
+    """
+    import numpy as np
+    import pandas as pd
+    from ictlab.setups import SetupParams, build_signals
+    from ictlab.structure import atr
+
+    n = 400
+    rng = np.random.default_rng(3)
+    price = 2000 + np.cumsum(rng.normal(0, 0.5, n))
+    m1 = pd.DataFrame({
+        "time": pd.date_range("2024-01-01", periods=n, freq="1min"),
+        "open": price, "high": price + 0.4, "low": price - 0.4, "close": price,
+        "volume": 1, "spread": 3.0,
+    })
+    a = atr(m1, 14)
+    # یک جاروبِ خریدِ دستی در کندل ۱۰۰، سپس جهشِ شدید رو به پایین
+    # تا کف جاروب بالاتر از قیمتِ ورود بیفتد
+    sw = pd.DataFrame({"bar": [100, 110], "time": m1.time.values[[100, 110]],
+                       "dir": [1, -1], "extreme": [m1.low.values[100] - 0.05, 0.0]})
+    sig = build_signals(m1, sw, a, SetupParams(require_mss=False, require_fvg=False,
+                                               use_bias=False, min_stop_spread=0.0),
+                        0.01, 0.03, spread_col=m1.spread.values)
+    if not sig.empty:
+        for _, s in sig.iterrows():
+            if s["dir"] == 1:
+                assert s["stop"] < s["entry"], "استاپِ خرید بالای ورود است!"
+            else:
+                assert s["stop"] > s["entry"], "استاپِ فروش زیرِ ورود است!"

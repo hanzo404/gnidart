@@ -568,8 +568,11 @@ void TryExecute()
    double sl = NormalizeDouble(stop, _Digits);
    double tp = NormalizeDouble(target, _Digits);
 
-   string note = StringFormat("%s | ورود %.5f | استاپ %.5f | هدف %.5f | R=%.2f | حجم %.2f",
-         gotFvg ? "FVG" : "وسط‌کندل", price, sl, tp, MathAbs(price-stop), lots);
+   // جهت عمداً با کلمهٔ BUY/SELL نوشته می‌شود تا ابزار پاریتی بتواند
+   // لاگ MT5 را مستقیماً با مرجعِ پایتون مقایسه کند (compare_parity.py).
+   string note = StringFormat("%s | %s | ورود %.5f | استاپ %.5f | هدف %.5f | R=%.2f | حجم %.2f",
+         gotFvg ? "FVG" : "وسط‌کندل", (g_dir > 0 ? "BUY" : "SELL"),
+         price, sl, tp, MathAbs(price-stop), lots);
    if(!LiveTrading)
      {
       Log("📝 [شبیه‌سازی] " + note);

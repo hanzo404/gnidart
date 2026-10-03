@@ -45,6 +45,10 @@ class Trade:
     bars_held: int
     mfe: float
     mae: float
+    # قیمتِ لیمیتِ دستور، بدون اسپرد و اسلیپیج. اگر قیمت «از استاپ پر» شود
+    # (گپ), مقدارِ entry پرشده می‌تواند به آن‌سوی استاپ بیفتد؛ این فیلد
+    # مرجعِ بدون‌ابهامِ جهت است.
+    entry_signal: float = float("nan")
 
 
 def simulate(
@@ -171,6 +175,10 @@ def simulate(
                 time=pd.Timestamp(mtime[fill]), dir=direction, entry=fill_price, stop=stop,
                 target=target, exit=exit_price, r=pnl / real_risk, reason=reason,
                 bars_held=bars_held, mfe=mfe, mae=mae,
+                # قیمتِ لیمیتِ دستور (بدون اسپرد/اسلیپیج). اگر قیمت از
+                # استاپ «پر» شود (گپ)، entry پرشده می‌تواند به آن�� طرف دیگر
+                # بیفتد؛ entry_signal مرجعِ بدون‌ابهامِ جهت است.
+                entry_signal=entry,
             )
         )
     if not trades:

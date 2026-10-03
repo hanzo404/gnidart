@@ -159,6 +159,11 @@ def build_signals(
 
         # ۴) استاپ پشت extremum جاروب + بافر
         stop = sw.extreme - d * p.stop_buffer_atr * a
+        # استاپ باید واقعاً در سمتِ ضرر باشد. اگر قیمت بین کندلِ جاروب و
+        # کندلِ جابه‌جا جهش کرده باشد، «زیرِ کف جاروب» می‌تواند بالای ورود
+        # بیفتد و معامله‌ای بی‌معنا (استاپ در سمتِ سود) تولید کند.
+        if (d == 1 and stop >= entry) or (d == -1 and stop <= entry):
+            continue
         risk = abs(entry - stop)
         if risk <= 0:
             continue
