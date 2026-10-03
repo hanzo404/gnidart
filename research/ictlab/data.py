@@ -30,9 +30,19 @@ class Spec:
 
 # مقادیر واقع‌گرایانه برای CFDهای شاخصی با حساب ECN.
 # (برای طلا باید با اسپرد بروکر خودتان جایگزین شود — تنها گزینهٔ ناایمن)
+# مقادیر واقع‌گرایانه برای CFDهای شاخصی با حساب ECN.
+#
+# XAUUSD: دادهٔ واقعی MT5 با ستون spread بر حسب point=0.01.
+#   spread_pts اسپردِ میانهٔ دادهٔ واقعی است (۰٫۱۴ دلار) و slippage تخمینِ
+#   واقع‌بینانه برای حساب ECN. در آزمایش‌های ۰۷ تا ۰۹ ثابت شد که با هزینهٔ
+#   واقعی لبه ندارد (نسبت دامنهٔ M1 به اسپرد فقط ۶ برابر، در برابر ۱۱۹
+#   برابرِ شاخص‌ها) — به همین دلیل XAUUSD در فهرستِ عملیاتی نیست.
 SPECS = {
     "US30": Spec("US30", "us30_m1_duka.csv.gz", point=0.01, spread_pts=3.0, slippage_pts=1.0),
-    "NAS100": Spec("NAS100", "usatechidxusd_m1_duka.csv.gz", point=0.01, spread_pts=2.5, slippage_pts=1.0),
+    "NAS100": Spec("NAS100", "usatechidxusd_m1_duka.csv.gz", point=0.01, spread_pts=2.5,
+                   slippage_pts=1.0),
+    "XAUUSD": Spec("XAUUSD", "xauusd_m1_mt5_3y.csv.gz", point=0.01, spread_pts=14.0,
+                   slippage_pts=3.0),
 }
 
 
@@ -45,6 +55,11 @@ def load_m1(spec: Spec, path: str | None = None) -> pd.DataFrame:
         df = df.rename(columns={"tick_volume": "volume"})
     if "spread" not in df.columns:
         df["spread"] = spec.spread_pts * spec.point
+    else:
+        # ستون spread در خروجی MT5 بر حسب «نقطه» است (مثلا 14 یعنی 0.14
+        # برای point=0.01)، نه بر حسب واحد قیمت. بدون این تبدیل، هزینه
+        # ۱۰۰ برابر بیش از واقع حساب می‌شود و نتیجه را وارونه می‌کند.
+        df["spread"] = df["spread"] * spec.point
     keep = ["time", "open", "high", "low", "close", "volume", "spread"]
     df = df[[c for c in keep if c in df.columns]].copy()
     df["time"] = pd.to_datetime(df["time"])
